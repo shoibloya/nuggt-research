@@ -1,3 +1,5 @@
+// components/SpreadsheetSlideOver.tsx
+
 'use client'
 
 import React, { useState, useEffect } from "react"
@@ -5,11 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useFlowStore } from "@/storage/store"
-import { Loader2, Trash, PlusCircle, Check } from 'lucide-react'
+import { Loader2, Trash, PlusCircle, Check, Settings } from 'lucide-react'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { v4 as uuidv4 } from "uuid"
-import { DataGrid, GridColDef, GridRowModel } from "@mui/x-data-grid"
+import { DataGrid, GridColDef, GridRowModel, GridToolbar } from "@mui/x-data-grid"
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "react-toastify"
@@ -32,15 +34,25 @@ export default function SpreadsheetSlideOver() {
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null)
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([])
+
   useEffect(() => {
     if (openSpreadsheetNodeId) {
-      const nodeData = nodes.find((node) => node.id === openSpreadsheetNodeId)
-      if (nodeData?.data?.rows) {
-        setRows(nodeData.data.rows)
-        setColumns(nodeData.data.columnDefinitions || [])
-        setStage("ready")
-      } else if (nodeData?.data?.columnDefinitions?.length > 0) {
-        setColumns(nodeData.data.columnDefinitions)
+      const nodeData = nodes.find((node) => node.id === openSpreadsheetNodeId)?.data
+      if (nodeData?.rows) {
+        setRows(nodeData.rows)
+      } else {
+        setRows([])
+      }
+
+      if (nodeData?.columnDefinitions?.length > 0) {
+        // Set columns and ensure optionsText is populated
+        const colsWithOptionsText = nodeData.columnDefinitions.map((col) => {
+          if ((col.type === "Select" || col.type === "Label") && col.options) {
+            return { ...col, optionsText: col.options.join(", ") }
+          }
+          return col
+        })
+        setColumns(colsWithOptionsText)
         setStage("ready")
       } else {
         setStage("initial")
@@ -80,10 +92,17 @@ export default function SpreadsheetSlideOver() {
       }
 
       const data = await response.json()
-      const columnsWithId = data.columns.map((col: any) => ({
-        ...col,
-        id: col.id || uuidv4(),
-      }))
+      const columnsWithId = data.columns.map((col: any) => {
+        const colWithId = {
+          ...col,
+          id: col.id || uuidv4(),
+        }
+        // If the column is of type Select or Label, set optionsText
+        if ((col.type === "Select" || col.type === "Label") && col.options) {
+          colWithId.optionsText = col.options.join(", ")
+        }
+        return colWithId
+      })
       setColumns(columnsWithId)
       setStage("editingColumns")
       toast.success("Columns generated successfully!")
@@ -101,26 +120,25 @@ export default function SpreadsheetSlideOver() {
     const updatedRows = rows.filter((row) => !selectedRowIds.includes(row.id))
     setRows(updatedRows)
     setSelectedRowIds([]) // Clear selection after deletion
-  
+
     if (openSpreadsheetNodeId) {
       updateSpreadsheetData(openSpreadsheetNodeId, updatedRows)
     }
     toast.info(`${selectedRowIds.length} rows deleted.`)
   }
-  
 
   const handleAddColumn = () => {
-    setColumns([
-      ...columns,
-      {
-        id: uuidv4(),
-        name: "",
-        description: "",
-        type: "Text",
-        options: [],
-      },
-    ])
-  }
+    const newColumn = {
+      id: uuidv4(),
+      name: `New Column ${columns.length + 1}`,
+      description: "",
+      type: "Text",
+      options: [],
+    };
+    const updatedColumns = [...columns, newColumn];
+    setColumns(updatedColumns);
+    toast.success(`Added column "${newColumn.name}"`);
+  };
 
   const confirmDeleteColumn = (id: string, name: string) => {
     setConfirmDelete({ id, name })
@@ -128,7 +146,8 @@ export default function SpreadsheetSlideOver() {
 
   const handleDeleteColumn = () => {
     if (confirmDelete) {
-      setColumns(columns.filter((col) => col.id !== confirmDelete.id))
+      const updatedColumns = columns.filter((col) => col.id !== confirmDelete.id)
+      setColumns(updatedColumns)
       setConfirmDelete(null)
       toast.info(`Column "${confirmDelete.name}" deleted.`)
     }
@@ -142,10 +161,54 @@ export default function SpreadsheetSlideOver() {
       }
     }
 
-    setRows([])
+    // Update column definitions in the store
     if (openSpreadsheetNodeId) {
-      updateSpreadsheetData(openSpreadsheetNodeId, [])
+      // Before updating, handle any changes to rows due to column changes
+      // For example, if columns were added or removed, adjust rows accordingly
+
+      // Get the current columns in the store
+      const nodeData = nodes.find((node) => node.id === openSpreadsheetNodeId)?.data
+      const prevColumns = nodeData?.columnDefinitions || []
+
+      // Compare previous columns and new columns to adjust rows
+      const prevColumnIds = prevColumns.map((col) => col.id)
+      const newColumnIds = columns.map((col) => col.id)
+
+      // Columns that were removed
+      const removedColumns = prevColumns.filter((col) => !newColumnIds.includes(col.id))
+      // Columns that were added
+      const addedColumns = columns.filter((col) => !prevColumnIds.includes(col.id))
+
+      // Adjust rows
+      let updatedRows = [...rows]
+
+      // Remove data for removed columns
+      if (removedColumns.length > 0) {
+        updatedRows = updatedRows.map((row) => {
+          const newRow = { ...row }
+          removedColumns.forEach((col) => {
+            delete newRow[col.id]
+          })
+          return newRow
+        })
+      }
+
+      // Add empty data for added columns
+      if (addedColumns.length > 0) {
+        updatedRows = updatedRows.map((row) => {
+          const newRow = { ...row }
+          addedColumns.forEach((col) => {
+            newRow[col.id] = ""
+          })
+          return newRow
+        })
+      }
+
+      setRows(updatedRows)
+
+      // Update the store
       updateColumnDefinitions(openSpreadsheetNodeId, columns)
+      updateSpreadsheetData(openSpreadsheetNodeId, updatedRows)
     }
     setStage("ready")
     toast.success("Columns confirmed.")
@@ -155,7 +218,6 @@ export default function SpreadsheetSlideOver() {
     const updatedRows = rows.map((row) =>
       row.id === newRow.id ? { ...newRow, isNew: false } : row
     )
-    console.log("updateing..")
     setRows(updatedRows)
     if (openSpreadsheetNodeId) {
       updateSpreadsheetData(openSpreadsheetNodeId, updatedRows)
@@ -193,7 +255,7 @@ export default function SpreadsheetSlideOver() {
         break
       case "Select":
         gridCol.type = "singleSelect"
-        gridCol.valueOptions = col.options
+        gridCol.valueOptions = col.options || []
         break
       default:
         break
@@ -208,25 +270,55 @@ export default function SpreadsheetSlideOver() {
   }))
 
   const handleAddRow = () => {
-    console.log("adding")
-    
     // Create a new row with default empty values for each column
     const newRow = columns.reduce(
       (acc, col) => ({ ...acc, [col.id]: "" }),
       { id: uuidv4() } // Assign a unique ID to the new row
     )
-  
+
     // Add the new row to the rows state
     const updatedRows = [...rows, newRow]
     setRows(updatedRows)
-  
+
     // Update the spreadsheet data in storage (if openSpreadsheetNodeId exists)
     if (openSpreadsheetNodeId) {
       updateSpreadsheetData(openSpreadsheetNodeId, updatedRows)
     }
-  
+
     // Optionally log or notify the user about the new row
     console.log("Row added:", newRow)
+  }
+
+  // Function to handle column name change
+  const handleColumnNameChange = (index: number, newName: string) => {
+    const newColumns = [...columns]
+    newColumns[index].name = newName
+    setColumns(newColumns)
+  }
+
+  // Function to handle column type change
+  const handleColumnTypeChange = (index: number, newType: string) => {
+    const newColumns = [...columns]
+    newColumns[index].type = newType
+    setColumns(newColumns)
+  }
+
+  // Function to handle column description change
+  const handleColumnDescriptionChange = (index: number, newDescription: string) => {
+    const newColumns = [...columns]
+    newColumns[index].description = newDescription
+    setColumns(newColumns)
+  }
+
+  // Function to handle column options change
+  const handleColumnOptionsChange = (index: number, optionsText: string) => {
+    const newColumns = [...columns];
+    newColumns[index].optionsText = optionsText;
+    newColumns[index].options = optionsText
+      .split(",")
+      .map((opt) => opt.trim())
+      .filter((opt) => opt);
+    setColumns(newColumns);
   }
 
   return (
@@ -329,11 +421,7 @@ export default function SpreadsheetSlideOver() {
                                 <Input
                                   placeholder="Column Name"
                                   value={col.name}
-                                  onChange={(e) => {
-                                    const newColumns = [...columns]
-                                    newColumns[index].name = e.target.value
-                                    setColumns(newColumns)
-                                  }}
+                                  onChange={(e) => handleColumnNameChange(index, e.target.value)}
                                   className="flex-1 mr-2"
                                 />
                                 <Tooltip>
@@ -351,11 +439,7 @@ export default function SpreadsheetSlideOver() {
                                 </Tooltip>
                               </div>
                               <Select
-                                onValueChange={(value) => {
-                                  const newColumns = [...columns]
-                                  newColumns[index].type = value
-                                  setColumns(newColumns)
-                                }}
+                                onValueChange={(value) => handleColumnTypeChange(index, value)}
                                 value={col.type}
                                 className="w-full"
                               >
@@ -375,12 +459,8 @@ export default function SpreadsheetSlideOver() {
                               </Select>
                               <Input
                                 placeholder="Description"
-                                value={col.description}
-                                onChange={(e) => {
-                                  const newColumns = [...columns]
-                                  newColumns[index].description = e.target.value
-                                  setColumns(newColumns)
-                                }}
+                                value={col.description || ''}
+                                onChange={(e) => handleColumnDescriptionChange(index, e.target.value)}
                                 className="mt-2"
                               />
                               {(col.type === "Select" || col.type === "Label") && (
@@ -389,15 +469,7 @@ export default function SpreadsheetSlideOver() {
                                   <Textarea
                                     placeholder="Enter options separated by commas"
                                     value={col.optionsText || ""}
-                                    onChange={(e) => {
-                                      const newColumns = [...columns];
-                                      newColumns[index].optionsText = e.target.value;
-                                      newColumns[index].options = e.target.value
-                                        .split(",")
-                                        .map((opt) => opt.trim())
-                                        .filter((opt) => opt);
-                                      setColumns(newColumns);
-                                    }}
+                                    onChange={(e) => handleColumnOptionsChange(index, e.target.value)}
                                     className="resize-none"
                                   />
                                 </div>
@@ -412,25 +484,37 @@ export default function SpreadsheetSlideOver() {
                       <div className="flex flex-col h-full">
                         <div className="flex justify-between items-center mb-4">
                           <h3 className="text-lg font-medium">Spreadsheet Data</h3>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleAddRow}
-                            className="flex items-center space-x-2"
-                          >
-                            <PlusCircle className="h-4 w-4 mr-2" />
-                            <span>Add Row</span>
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={handleDeleteSelectedRows}
-                            className="flex items-center space-x-2"
-                            disabled={selectedRowIds.length === 0}
-                          >
-                            <Trash className="h-4 w-4 mr-2" />
-                            <span>Delete Selected Rows</span>
-                          </Button>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleAddRow}
+                              className="flex items-center space-x-2"
+                            >
+                              <PlusCircle className="h-4 w-4 mr-2" />
+                              <span>Add Row</span>
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={handleDeleteSelectedRows}
+                              className="flex items-center space-x-2"
+                              disabled={selectedRowIds.length === 0}
+                            >
+                              <Trash className="h-4 w-4 mr-2" />
+                              <span>Delete Selected Rows</span>
+                            </Button>
+                            {/* Column Options Button */}
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setStage("editingColumns")}
+                              className="flex items-center space-x-2"
+                            >
+                              <Settings className="h-4 w-4 mr-2" />
+                              <span>Column Options</span>
+                            </Button>
+                          </div>
                         </div>
                         <div className="flex-1 overflow-auto">
                           <DataGrid
@@ -445,8 +529,8 @@ export default function SpreadsheetSlideOver() {
                             experimentalFeatures={{ newEditingApi: true }}
                             onRowSelectionModelChange={(newSelection) => {
                               setSelectedRowIds(newSelection as string[])
-                              console.log("selected")
                             }}
+                            slots={{ toolbar: GridToolbar }}
                           />
                         </div>
                       </div>

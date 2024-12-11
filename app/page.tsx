@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 
 import React from "react";
@@ -10,10 +9,23 @@ import { motion, AnimatePresence } from "framer-motion";
 import dagre from "dagre";
 import { DockDemo } from "@/components/DockDemo";
 import { v4 as uuidv4 } from 'uuid';
-import { useFlowStore } from "@/storage/store"; // Adjust the path as necessary
+import { useFlowStore } from "@/storage/store";
 import SpreadsheetDialog from "@/components/SpreadsheetDialog";
 import ModernChatbot from "@/components/ModernChatbot";
 import ContextDialog from "@/components/ContextDialog";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import SignInForm from "@/components/SignInForm";
+import { cn } from "@/lib/utils";
+import { DotPattern } from "@/components/ui/dot-pattern";
+
+// Firebase imports for Firestore and Auth
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db, auth } from "@/lib/firebase";
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+
+// Import the cleanData utility
+import { cleanData } from "@/utils/cleanData";
 
 const nodeWidth = 200;
 const nodeHeight = 50;
@@ -36,6 +48,46 @@ const FlowPage = () => {
     setAreasData,
   } = useFlowStore();
 
+  const [showSearchBox, setShowSearchBox] = React.useState(false);
+  const [showAreaSelection, setShowAreaSelection] = React.useState(false);
+
+  const [user, setUser] = React.useState<any>(null);
+  const [authLoading, setAuthLoading] = React.useState(true);
+  
+  // Track if data is loaded from Firestore
+  const [dataLoaded, setDataLoaded] = React.useState(false);
+
+  // Monitor authentication state
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Handle Google Sign-In
+  const handleGoogleSignIn = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      console.log("Signed in successfully with Google!");
+    } catch (error) {
+      console.error("Error signing in with Google:", error);
+    }
+  };
+
+  // Handle Sign-Out
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      console.log("Signed out successfully!");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
   const generateUniqueLabel = (type: string, baseLabel: string): string => {
     const count = nodes.filter((node) => node.type === type).length + 1;
     return `Untitled-${baseLabel}-${count}`;
@@ -53,7 +105,6 @@ const FlowPage = () => {
       },
       data: {
         label: uniqueLabel,
-        // Do not initialize spreadsheetData here
       },
       sourcePosition: "right",
       targetPosition: "left",
@@ -62,7 +113,6 @@ const FlowPage = () => {
     useFlowStore.getState().addNode(newNode);
   };
 
-  // Function to add a Chatbot node
   const addChatbotNode = () => {
     const newNodeId = `chatbot-${uuidv4()}`;
     const uniqueLabel = generateUniqueLabel("chatbot", "Chatbot");
@@ -98,14 +148,12 @@ const FlowPage = () => {
       targetPosition: "left",
     };
     useFlowStore.getState().addNode(newNode);
-  }
-
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (query.trim()) {
       setLoading(true);
-      setShowFlow(false);
       try {
         const response = await fetch("/api/generateGraph", {
           method: "POST",
@@ -121,6 +169,9 @@ const FlowPage = () => {
 
         const data = await response.json();
         setAreasData(data.areas);
+        setShowSearchBox(false);
+        setShowAreaSelection(true);
+
       } catch (error) {
         console.error(error);
       } finally {
@@ -134,18 +185,17 @@ const FlowPage = () => {
     setNodes([...nodes, ...generatedNodes]);
     setEdges([...edges, ...generatedEdges]);
     setIdeaNodesArray([...ideaNodesArray, ...generatedIdeaNodesArray]);
-    setShowFlow(true);
+    setShowAreaSelection(false);
     setAreasData(null);
   };
 
   const processGraphData = (areas: any[]) => {
-    const nodes: any[] = [];
-    const edges: any[] = [];
-    const ideaNodesArrayLocal: any[] = []; // Rename to avoid conflict
+    const nodesLocal: any[] = [];
+    const edgesLocal: any[] = [];
+    const ideaNodesArrayLocal: any[] = [];
 
-    // Create the root node with the main query
-    const rootNodeId = "root-node";
-    nodes.push({
+    const rootNodeId = `root-node-${uuidv4()}`;
+    nodesLocal.push({
       id: rootNodeId,
       data: {
         label: query,
@@ -154,17 +204,15 @@ const FlowPage = () => {
       },
       type: "expandable",
       style: {
-        backgroundColor: "#ccffcc", // Green color for root node
+        backgroundColor: "#ccffcc",
       },
       sourcePosition: "right",
       targetPosition: "left",
     });
 
     areas.forEach((area, areaIndex) => {
-      const areaId = `area-${areaIndex}`;
-
-      // Create the area node
-      nodes.push({
+      const areaId = `area-${areaIndex}-${uuidv4()}`;
+      nodesLocal.push({
         id: areaId,
         data: {
           label: area.name,
@@ -173,14 +221,13 @@ const FlowPage = () => {
         },
         type: "expandable",
         style: {
-          backgroundColor: "#ffffff", // White color for area nodes
+          backgroundColor: "#ffffff",
         },
         sourcePosition: "right",
         targetPosition: "left",
       });
 
-      // Create edge from root node to area node
-      edges.push({
+      edgesLocal.push({
         id: `e-${rootNodeId}-${areaId}`,
         source: rootNodeId,
         target: areaId,
@@ -190,10 +237,8 @@ const FlowPage = () => {
       });
 
       area.google_search_ideas.forEach((idea: any, ideaIndex: number) => {
-        const ideaId = `area-${areaIndex}-idea-${ideaIndex}`;
-
-        // Create the idea node
-        nodes.push({
+        const ideaId = `idea-${ideaIndex}-${uuidv4()}`;
+        nodesLocal.push({
           id: ideaId,
           data: {
             label: idea.text || idea,
@@ -203,21 +248,19 @@ const FlowPage = () => {
           },
           type: "expandable",
           style: {
-            backgroundColor: "#f0f0f0", // Light gray for waiting nodes
+            backgroundColor: "#f0f0f0",
           },
           sourcePosition: "right",
           targetPosition: "left",
         });
 
-        // Add to the ideaNodesArray
         ideaNodesArrayLocal.push({
           nodeId: ideaId,
           searchQuery: idea.text || idea,
           rootNodeId: areaId,
         });
 
-        // Create the edge from the area node to this idea node
-        edges.push({
+        edgesLocal.push({
           id: `e-${areaId}-${ideaId}`,
           source: areaId,
           target: ideaId,
@@ -228,25 +271,23 @@ const FlowPage = () => {
       });
     });
 
-    // Use Dagre to calculate node positions with horizontal layout
     const { nodes: layoutNodes, edges: layoutEdges } = getLayoutedElements(
-      nodes,
-      edges,
-      "LR" // "LR" for Left-Right layout
+      nodesLocal,
+      edgesLocal,
+      "LR"
     );
 
     return { nodes: layoutNodes, edges: layoutEdges, ideaNodesArray: ideaNodesArrayLocal };
   };
 
-  // Function to layout elements using Dagre
   const getLayoutedElements = (nodes: any[], edges: any[], direction = "LR") => {
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
 
     dagreGraph.setGraph({
       rankdir: direction,
-      nodesep: 100, // Increased for better spacing
-      ranksep: 200, // Increased for better spacing
+      nodesep: 100,
+      ranksep: 200,
       marginx: 50,
       marginy: 50,
     });
@@ -267,12 +308,92 @@ const FlowPage = () => {
         x: nodeWithPosition.x - nodeWidth / 2,
         y: nodeWithPosition.y - nodeHeight / 2,
       };
-
-      // No need for positionAbsolute in latest React Flow versions
     });
 
     return { nodes, edges };
   };
+
+  const onWhatsAppClick = () => {
+    setShowSearchBox(true);
+    setShowAreaSelection(false);
+  };
+
+  // Fetch user data from Firestore on login (only if doc exists)
+  React.useEffect(() => {
+    const loadUserData = async () => {
+      if (user?.email) {
+        const docRef = doc(db, "users", user.email);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.nodes) setNodes(data.nodes);
+          if (data.edges) setEdges(data.edges);
+          if (data.ideaNodesArray) setIdeaNodesArray(data.ideaNodesArray);
+          // Set dataLoaded to true after we've loaded data
+          setDataLoaded(true);
+        } else {
+          // If no doc, still mark data as loaded
+          setDataLoaded(true);
+        }
+      }
+    };
+    if (user?.email) {
+      loadUserData();
+    }
+  }, [user, setNodes, setEdges, setIdeaNodesArray]);
+
+  // Debounce to avoid many writes
+  function debounce(func: () => void, delay: number) {
+    let timer: NodeJS.Timeout;
+    return () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        func();
+      }, delay);
+    };
+  }
+
+  const saveData = React.useCallback(
+    debounce(async () => {
+      // Only save if dataLoaded is true
+      if (user?.email && dataLoaded) {
+        const docRef = doc(db, "users", user.email);
+        const dataToSave = {
+          nodes: cleanData(nodes),
+          edges: cleanData(edges),
+          ideaNodesArray: cleanData(ideaNodesArray),
+        };
+        try {
+          await setDoc(docRef, dataToSave, { merge: true });
+          console.log("Data saved successfully!");
+        } catch (error) {
+          console.error("Error saving data:", error);
+        }
+      }
+    }, 1000),
+    [user, nodes, edges, ideaNodesArray, dataLoaded]
+  );
+
+  React.useEffect(() => {
+    if (user?.email && dataLoaded) {
+      saveData();
+    }
+  }, [nodes, edges, ideaNodesArray, user, saveData, dataLoaded]);
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <ButtonLoading />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SignInForm onSignIn={handleGoogleSignIn} />
+    );
+  }
 
   return (
     <main
@@ -283,22 +404,25 @@ const FlowPage = () => {
         overflow: "hidden",
       }}
     >
-      {/* Dock Component */}
       {showFlow && (
         <div
           style={{
             position: "fixed",
-            bottom: "20px", // Adjust the bottom margin as needed
+            bottom: "20px",
             left: "50%",
             transform: "translateX(-50%)",
-            zIndex: 40, // Higher z-index to ensure it's on top
+            zIndex: 40,
           }}
         >
-          <DockDemo addSpreadsheetNode={addSpreadsheetNode} addChatbotNode={addChatbotNode} addContextNode={addContextNode}/>
+          <DockDemo 
+            addSpreadsheetNode={addSpreadsheetNode} 
+            addChatbotNode={addChatbotNode} 
+            addContextNode={addContextNode} 
+            onWhatsAppClick={onWhatsAppClick}
+          />
         </div>
       )}
 
-      {/* Loading Overlay */}
       {loading && (
         <div
           style={{
@@ -316,46 +440,70 @@ const FlowPage = () => {
         </div>
       )}
 
-      <AnimatePresence>
-        {!showFlow && !loading && areasData && (
-          <motion.div
-            key="area-selection"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <AreaSelection
-              areasData={areasData}
-              onProcessSelection={handleProcessSelection}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div
+        style={{
+          position: 'absolute',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 50,
+          maxWidth: '800px',
+          width: '90%'
+        }}
+      >
+        <AnimatePresence>
+          {showSearchBox && !loading && (
+            <motion.div
+              key="searchbox"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="p-4">
+                <SearchBox
+                  query={query}
+                  setQuery={setQuery}
+                  handleSubmit={handleSubmit}
+                  showFlow={showFlow}
+                />
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showAreaSelection && areasData && !loading && (
+            <motion.div
+              key="area-selection"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="p-4 max-h-[80vh] overflow-auto">
+                <AreaSelection
+                  areasData={areasData}
+                  onProcessSelection={handleProcessSelection}
+                />
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {showFlow && (
         <>
-        <FlowCanvas
-          showFlow={showFlow}
-          nodes={nodes}
-          edges={edges}
-          ideaNodesArray={ideaNodesArray}
-        />
-        {/* Include SpreadsheetDialog here */}
-        <SpreadsheetDialog />
-        {/* Conditionally render ModernChatbot based on openChatbotNodeId */}
-        <ModernChatbot />
-        <ContextDialog />
+          <FlowCanvas
+            showFlow={showFlow}
+            nodes={nodes}
+            edges={edges}
+            ideaNodesArray={ideaNodesArray}
+          />
+          <SpreadsheetDialog />
+          <ModernChatbot />
+          <ContextDialog />
         </>
-      )}
-
-      {!loading && !showFlow && !areasData && (
-        <SearchBox
-          query={query}
-          setQuery={setQuery}
-          handleSubmit={handleSubmit}
-          showFlow={showFlow}
-        />
       )}
     </main>
   );

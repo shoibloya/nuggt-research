@@ -1,4 +1,3 @@
-// components/FlowCanvas.tsx
 "use client";
 
 import React, { useEffect, useCallback, useRef } from "react";
@@ -14,12 +13,14 @@ import {
   OnEdgesChange,
   applyNodeChanges,
   applyEdgeChanges,
+  MiniMap
 } from "reactflow";
 import "reactflow/dist/style.css";
+import dagre from "dagre";
 import ExpandableNode from "@/components/ExpandableNode";
 import SpreadsheetNode from "@/components/SpreadsheetNode";
-import ChatbotNode from "@/components/ChatbotNode"; // Import the new ChatbotNode
-import { useFlowStore, FlowNode, FlowEdge, IdeaNode } from "@/storage/store"; // Adjust the path as necessary
+import ChatbotNode from "@/components/ChatbotNode";
+import { useFlowStore, FlowNode, FlowEdge, IdeaNode } from "@/storage/store";
 import ContextNode from '@/components/ContextNode';
 
 interface FlowCanvasProps {
@@ -33,9 +34,12 @@ interface FlowCanvasProps {
 const nodeTypes: NodeTypes = {
   expandable: ExpandableNode,
   spreadsheet: SpreadsheetNode,
-  chatbot: ChatbotNode, // Add ChatbotNode to nodeTypes
+  chatbot: ChatbotNode,
   contextNode: ContextNode,
 };
+
+const nodeWidth = 200;
+const nodeHeight = 50;
 
 const FlowCanvas: React.FC<FlowCanvasProps> = ({
   showFlow,
@@ -46,14 +50,13 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
   const {
     setNodes,
     setEdges,
-    updateNodePosition, // Action to update node position
+    updateNodePosition,
   } = useFlowStore();
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState(nodes);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState(edges);
   const [sources, setSources] = React.useState<{ [key: string]: any }>({});
 
-  // Synchronize global nodes and edges with React Flow state
   useEffect(() => {
     setRfNodes(nodes);
   }, [nodes, setRfNodes]);
@@ -62,14 +65,12 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     setRfEdges(edges);
   }, [edges, setRfEdges]);
 
-  // Handle node changes
   const handleNodesChange: OnNodesChange = useCallback(
     (changes) => {
       const updatedNodes = applyNodeChanges(changes, rfNodes);
       setRfNodes(updatedNodes);
       setNodes(updatedNodes);
 
-      // Iterate over the changes to find position updates
       changes.forEach((change) => {
         if (change.type === "position" && change.position) {
           updateNodePosition(change.id, change.position);
@@ -88,13 +89,12 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     [rfEdges, setRfEdges, setEdges]
   );
 
-  // Function to update node data and style (already present)
   const updateNode = (
     nodeId: string,
     updates: {
       data?: any;
       style?: any;
-      type?: string; // Add type here if you want to update node type
+      type?: string;
     }
   ) => {
     useFlowStore.setState((state) => ({
@@ -110,14 +110,15 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
               ...node.style,
               ...updates.style,
             },
-            type: updates.type || node.type, // Update node type if provided
+            type: updates.type || node.type,
           };
         }
         return node;
       }),
     }));
   };
-  const processingRef = useRef(false); // Lock to prevent concurrent processing
+
+  const processingRef = useRef(false);
 
   useEffect(() => {
     const processSearches = async () => {
@@ -126,10 +127,9 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         return;
       }
 
-      // Filter ideaNodes that are pending (e.g., status is 'waiting')
-      const pendingIdeaNodes = ideaNodesArray.filter(node => {
-        const correspondingNode = rfNodes.find(n => n.id === node.nodeId);
-        return correspondingNode?.data.status === 'waiting';
+      const pendingIdeaNodes = ideaNodesArray.filter((ideaNode) => {
+        const correspondingNode = rfNodes.find((n) => n.id === ideaNode.nodeId);
+        return correspondingNode?.data.status === "waiting";
       });
 
       console.log("Process Searches Triggered");
@@ -140,105 +140,157 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         return;
       }
 
-      processingRef.current = true; // Acquire the lock
+      processingRef.current = true;
 
-      // Group ideaNodes by their rootNodeId
-      const ideaNodesByRoot = pendingIdeaNodes.reduce((acc: any, ideaNode: any) => {
-        const { rootNodeId } = ideaNode;
-        if (!acc[rootNodeId]) {
-          acc[rootNodeId] = [];
-        }
-        acc[rootNodeId].push(ideaNode);
-        return acc;
-      }, {});
+      for (const ideaNode of pendingIdeaNodes) {
+        const { nodeId, searchQuery, rootNodeId } = ideaNode;
+        console.log(`Processing nodeId: ${nodeId} with searchQuery: ${searchQuery}`);
 
-      console.log("Grouped Idea Nodes by Root:", ideaNodesByRoot);
-
-      for (const rootNodeId in ideaNodesByRoot) {
-        const ideaNodesForRoot = ideaNodesByRoot[rootNodeId];
-        console.log(`Processing rootNodeId: ${rootNodeId} with ideaNodes:`, ideaNodesForRoot);
-
-        // Update idea nodes to "researching" status
-        ideaNodesForRoot.forEach(({ nodeId, searchQuery }: any) => {
-          console.log(`Updating node ${nodeId} to "researching"`);
-          updateNode(nodeId, {
-            data: {
-              status: "researching",
-              displayLabel: `Researching on ${searchQuery}`,
-            },
-            style: {
-              backgroundColor: "#ffd699", // Light orange
-            },
-          });
+        updateNode(nodeId, {
+          data: {
+            status: "researching",
+            displayLabel: `Researching on ${searchQuery}`,
+          },
+          style: {
+            backgroundColor: "#ffd699",
+          },
         });
 
         try {
-          // Call the API to fetch data for the ideaNodes of this root node
           const response = await fetch("/api/researchIdea", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              ideaNodes: ideaNodesForRoot,
+              ideaNode: { nodeId, searchQuery },
               rootNodeId,
             }),
           });
 
-          console.log(`API call for rootNodeId: ${rootNodeId} completed with status: ${response.status}`);
+          console.log(`API call for nodeId: ${nodeId} completed with status: ${response.status}`);
 
           if (!response.ok) {
             throw new Error("Failed to fetch node content");
           }
 
           const result = await response.json();
-          const { responses, sources } = result; // Extract responses and sources
+          const { response: nodeResponse } = result;
 
-          // Update sources state
-          setSources((prevSources) => ({ ...prevSources, ...sources }));
+          const { bulletPoints, sources: nodeSources } = nodeResponse;
 
-          // Update nodes with the fetched content
-          responses.forEach(({ nodeId, bulletPoints, sources, nodeType }: any) => {
-            console.log(`Updating node ${nodeId} with fetched content.`);
-            updateNode(nodeId, {
-              data: {
-                status: "done",
-                displayLabel: ideaNodesArray.find((n) => n.nodeId === nodeId)
-                  ?.searchQuery,
-                content: bulletPoints, // Assign the markdown content to the node
-                sources, // Pass sources to the node
-              },
-              type: nodeType || "expandable", // Set node type, default to 'expandable'
-              style: {
-                backgroundColor: "#ffffff", // White
-              },
-            });
+          setSources((prevSources) => ({ ...prevSources, ...nodeSources }));
+
+          updateNode(nodeId, {
+            data: {
+              status: "done",
+              displayLabel: searchQuery,
+              content: bulletPoints,
+              sources: nodeSources,
+            },
+            type: "expandable",
+            style: {
+              backgroundColor: "#ffffff",
+            },
           });
         } catch (error) {
-          console.error("Error processing rootNodeId:", rootNodeId, error);
-          // Update nodes with an error message
-          ideaNodesForRoot.forEach(({ nodeId, searchQuery }: any) => {
-            console.log(`Updating node ${nodeId} with error message.`);
-            updateNode(nodeId, {
-              data: {
-                status: "done",
-                displayLabel: searchQuery, // Reset label to original
-                content: "Failed to fetch data.",
-              },
-              style: {
-                backgroundColor: "#ffffff", // White
-              },
-            });
+          console.error("Error processing nodeId:", nodeId, error);
+          updateNode(nodeId, {
+            data: {
+              status: "done",
+              displayLabel: searchQuery,
+              content: "Failed to fetch data.",
+            },
+            style: {
+              backgroundColor: "#ffffff",
+            },
           });
         }
       }
 
-      processingRef.current = false; // Release the lock
+      processingRef.current = false;
     };
 
     processSearches();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ideaNodesArray]); // Keep dependencies as ideaNodesArray and rfNodes
+  }, [ideaNodesArray, rfNodes]);
+
+  // Re-layout function for expandable nodes
+  const reLayoutExpandableNodes = () => {
+    const allNodes = useFlowStore.getState().nodes;
+    const allEdges = useFlowStore.getState().edges;
+
+    const expandableNodes = allNodes.filter((node) => node.type === "expandable");
+    const expandableNodeIds = new Set(expandableNodes.map((n) => n.id));
+    const expandableEdges = allEdges.filter(
+      (edge) => expandableNodeIds.has(edge.source) && expandableNodeIds.has(edge.target)
+    );
+
+    if (expandableNodes.length === 0) return;
+
+    const { nodes: layoutNodes } = getLayoutedElements(expandableNodes, expandableEdges, "LR");
+
+    const updatedNodes = allNodes.map((node) => {
+      if (node.type === "expandable") {
+        const ln = layoutNodes.find((layoutNode) => layoutNode.id === node.id);
+        if (ln) {
+          return {
+            ...node,
+            position: ln.position,
+          };
+        }
+      }
+      return node;
+    });
+
+    // Update store and React Flow
+    setNodes(updatedNodes);
+    setRfNodes(updatedNodes);
+  };
+
+  const getLayoutedElements = (nodes: FlowNode[], edges: FlowEdge[], direction = "LR") => {
+    const dagreGraph = new dagre.graphlib.Graph();
+    dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+    dagreGraph.setGraph({
+      rankdir: direction,
+      nodesep: 100,
+      ranksep: 200,
+      marginx: 50,
+      marginy: 50,
+    });
+
+    nodes.forEach((node) => {
+      dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+    });
+
+    edges.forEach((edge) => {
+      dagreGraph.setEdge(edge.source, edge.target);
+    });
+
+    dagre.layout(dagreGraph);
+
+    const layoutNodes = nodes.map((node) => {
+      const nodeWithPosition = dagreGraph.node(node.id);
+      return {
+        ...node,
+        position: {
+          x: nodeWithPosition.x - nodeWidth / 2,
+          y: nodeWithPosition.y - nodeHeight / 2,
+        },
+      };
+    });
+
+    return { nodes: layoutNodes, edges };
+  };
+
+  // Expose the arrange function globally so DockDemo button can call it
+  useEffect(() => {
+    (window as any).arrangeAllExpandableNodes = reLayoutExpandableNodes;
+    return () => {
+      (window as any).arrangeAllExpandableNodes = null;
+    };
+  }, []);
 
   return (
     <>
@@ -253,7 +305,7 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
             position: "absolute",
             top: 0,
             left: 0,
-            zIndex: 10, // Ensure canvas is below the dock
+            zIndex: 10,
           }}
         >
           <ReactFlow
@@ -261,26 +313,26 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
             edges={rfEdges}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
-            /* Enable Multi-Node Selection and Dragging */
             nodesDraggable={true}
             elementsSelectable={true}
             selectNodesOnDrag={true}
             selectionOnDrag={true}
             fitView
             fitViewOptions={{ padding: 0.2 }}
-            connectionLineType="smoothstep" // Ensure edges are rendered smoothly
+            connectionLineType="smoothstep"
             nodeTypes={nodeTypes}
             zoomOnScroll={false}
             panOnScroll={true}
             panOnDrag={false}
           >
+            <MiniMap />
             <Controls />
             <Background
               variant="dots"
               gap={12}
               size={1}
-              color="#ddd"
-              style={{ backgroundColor: "#ffffff" }}
+              color="#000000"
+              style={{ backgroundColor: "#f3f4f6" }}
             />
           </ReactFlow>
         </motion.div>

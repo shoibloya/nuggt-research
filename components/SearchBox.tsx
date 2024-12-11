@@ -1,8 +1,6 @@
-// components/SearchBox.tsx
 "use client";
 
 import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -19,39 +17,24 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   handleSubmit,
   showFlow,
 }) => {
+  // Removed AnimatePresence and motion from here since we handle that in the parent now.
+  // Just render the form. The parent will wrap this in a card and animate it.
   return (
-    <AnimatePresence>
-      {!showFlow && (
-        <motion.div
-          initial={{ top: "50%", transform: "translate(-50%, -50%)", opacity: 1 }}
-          animate={{ top: "50%", transform: "translate(-50%, -50%)", opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
-          style={{
-            position: "fixed",
-            left: "50%",
-            zIndex: 10,
-            width: "400px",
-          }}
-        >
-          <form
-            onSubmit={handleSubmit}
-            style={{ display: "flex", justifyContent: "center" }}
-          >
-            <Input
-              type="text"
-              placeholder="Enter your query"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              style={{ flexGrow: 1 }}
-            />
-            <Button type="submit" style={{ marginLeft: "8px" }}>
-              Search
-            </Button>
-          </form>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <form
+      onSubmit={handleSubmit}
+      style={{ display: "flex", justifyContent: "center", gap: "8px" }}
+    >
+      <Input
+        type="text"
+        placeholder="Enter your query"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        style={{ flexGrow: 1 }}
+      />
+      <Button type="submit">
+        Search
+      </Button>
+    </form>
   );
 };
 

@@ -1,4 +1,3 @@
-// ExpandableNode.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -28,11 +27,14 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
+import { useFlowStore } from "@/storage/store";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useFlowStore } from "@/storage/store"; // Importing the store
+import { Progress } from "@/components/ui/progress";
 
 const ExpandableNode: React.FC<NodeProps> = ({
   id,
@@ -43,46 +45,71 @@ const ExpandableNode: React.FC<NodeProps> = ({
   targetPosition,
 }) => {
   const isRoot = data.isRoot;
-
   const reactFlowInstance = useReactFlow();
-
-  // State for dialog visibility and follow-up options
-  const [openDialog, setOpenDialog] = useState(false);
-  const [followUpOptions, setFollowUpOptions] = useState<string[]>([]);
-  const [loadingFollowUps, setLoadingFollowUps] = useState(false);
-  const [customQuery, setCustomQuery] = useState("");
-  const [loadingNewNode, setLoadingNewNode] = useState(false);
 
   const addContextEntry = useFlowStore((state) => state.addContextEntry);
 
-  // Determine the background color based on the node's status
+  // Follow-up dialog states
+  const [openFollowupDialog, setOpenFollowupDialog] = useState(false);
+  const [followupQuery, setFollowupQuery] = useState("");
+  const [loadingNewNode, setLoadingNewNode] = useState(false);
+
+  // Details dialog states
+  const [openDetailsDialog, setOpenDetailsDialog] = useState(false);
+  const [detailQueries, setDetailQueries] = useState<string[]>([]);
+  const [loadingQueries, setLoadingQueries] = useState(false);
+  const [newDetailQuery, setNewDetailQuery] = useState("");
+
+  // Node expansion state
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  // Determine the background color based on node status
   let backgroundColor =
     style?.backgroundColor || (isRoot ? "#ccffcc" : "#ffffff");
 
-  // If the node has a status, override the background color
   if (data.status === "waiting") {
-    backgroundColor = "#f0f0f0"; // Light gray for waiting nodes
+    backgroundColor = "#f0f0f0";
   } else if (data.status === "researching") {
-    backgroundColor = "#ffd699"; // Light orange for researching node
+    backgroundColor = "#ffd699";
   } else if (data.status === "done") {
-    backgroundColor = "#ffffff"; // White for done nodes
+    backgroundColor = "#fff9c4"; // Light yellow
   }
 
-  const buttonStyle = {
-    padding: "8px 12px",
-    backgroundColor: backgroundColor,
-    border: selected ? "2px solid #555" : "1px solid #777",
-    borderRadius: "5px",
-    color: "#000",
-    cursor: "pointer",
-    textAlign: "center" as const,
+  const borderClass = selected ? "border-2 border-gray-700" : "border border-gray-500";
+  const nodeClassName = `py-2 px-3 rounded cursor-pointer text-center flex items-center justify-between text-black ${borderClass}`;
+
+  const toggleExpansion = () => {
+    setIsExpanded(!isExpanded);
+    const descendants = getDescendants(id);
+    reactFlowInstance.setNodes((nds) =>
+      nds.map((node) => {
+        if (descendants.includes(node.id) && node.id !== id) {
+          return {
+            ...node,
+            hidden: !isExpanded,
+          };
+        }
+        return node;
+      })
+    );
+
+    reactFlowInstance.setEdges((eds) =>
+      eds.map((edge) => {
+        if (descendants.includes(edge.id)) {
+          return {
+            ...edge,
+            hidden: !isExpanded,
+          };
+        }
+        return edge;
+      })
+    );
   };
 
-  // Function to handle logging a specific context node's ID
   const handleAddToConsole = (nodeId: string) => {
     const selection = window.getSelection();
     const selectedText = selection ? selection.toString() : "";
-    if (selectedText){
+    if (selectedText) {
       console.log(`Context Node ID: ${nodeId}`);
       addContextEntry(nodeId, selectedText);
     } else {
@@ -90,7 +117,45 @@ const ExpandableNode: React.FC<NodeProps> = ({
     }
   };
 
-  // Function to update node data and style
+  const handleGetDetails = async () => {
+    const selection = window.getSelection();
+    const selectedText = selection ? selection.toString().trim() : "";
+    if (!selectedText) {
+      alert("No text selected. Please highlight some text before getting details.");
+      return;
+    }
+
+    setLoadingQueries(true);
+    setOpenDetailsDialog(true);
+
+    try {
+      // Call /api/generateSearchQueries with the entire node content and highlighted text
+      const response = await fetch("/api/generateSearchQueries", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          nodeContent: data.content || "",
+          highlightedText: selectedText 
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate search queries");
+      }
+
+      const result = await response.json();
+      const searchQueries = result.searchQueries || [];
+      setDetailQueries(searchQueries);
+    } catch (error) {
+      console.error(error);
+      setDetailQueries([]);
+    } finally {
+      setLoadingQueries(false);
+    }
+  };
+
   const updateNode = (
     nodeId: string,
     updates: {
@@ -118,9 +183,7 @@ const ExpandableNode: React.FC<NodeProps> = ({
     );
   };
 
-  // Handler for delete button
   const handleDelete = () => {
-    // Remove the node and its descendants
     const nodesToDelete = getDescendants(id);
     reactFlowInstance.setNodes((nds) =>
       nds.filter((node) => !nodesToDelete.includes(node.id))
@@ -134,13 +197,11 @@ const ExpandableNode: React.FC<NodeProps> = ({
     );
   };
 
-  // Function to get all descendants of a node
   const getDescendants = (nodeId: string): string[] => {
     const descendants = [nodeId];
     let stack = [nodeId];
     while (stack.length > 0) {
       const currentNodeId = stack.pop();
-      // Find children of current node
       const childEdges = reactFlowInstance
         .getEdges()
         .filter((edge) => edge.source === currentNodeId);
@@ -151,42 +212,17 @@ const ExpandableNode: React.FC<NodeProps> = ({
     return descendants;
   };
 
-  // Handler for follow-up button
-  const handleFollowUp = async () => {
-    setOpenDialog(true);
-    setLoadingFollowUps(true);
-
-    try {
-      const response = await fetch("/api/followUp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ topic: data.label, content: data.content }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch follow-up options");
-      }
-
-      const result = await response.json();
-
-      setFollowUpOptions(result.google_search || []);
-    } catch (error) {
-      console.error(error);
-      // Handle error, maybe set a state to display an error message
-    } finally {
-      setLoadingFollowUps(false);
-    }
+  // Follow-up handler (no automatic queries)
+  const handleFollowUp = () => {
+    // Just open the dialog for user to input a single query
+    setOpenFollowupDialog(true);
   };
 
-  // Handler for adding a new follow-up node using /api/researchDetails
   const addFollowUpNode = async (query: string) => {
     if (!query) return;
     setLoadingNewNode(true);
 
     try {
-      // Call the researchDetails API to get content
       const response = await fetch("/api/researchDetails", {
         method: "POST",
         headers: {
@@ -241,97 +277,75 @@ const ExpandableNode: React.FC<NodeProps> = ({
       reactFlowInstance.setNodes((nds) => nds.concat(newNode));
       reactFlowInstance.setEdges((eds) => eds.concat(newEdge));
 
-      setCustomQuery("");
-      setOpenDialog(false);
+      setFollowupQuery("");
+      setOpenFollowupDialog(false);
     } catch (error) {
       console.error(error);
-      // Handle error, maybe set a state to display an error message
     } finally {
       setLoadingNewNode(false);
     }
   };
 
-  // Handler for "Details >" button after each bullet point
-  const handleDetails = async (bulletPointText: string) => {
-    try {
-      // Generate search queries related to the bulletPointText
-      const response = await fetch('/api/generateSearchQueries', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+  // Create detail nodes from queries after user confirms
+  const confirmDetailQueries = async () => {
+    // For each query, create a "researching" node first, then call addDetailNode to populate
+    const node = reactFlowInstance.getNode(id);
+    if (!node) return;
+
+    const newNodeIds = detailQueries.map(() => `detail-${Date.now()}-${Math.random()}`);
+
+    const newNodes = newNodeIds.map((newNodeId, index) => {
+      const query = detailQueries[index];
+      const newPosition = {
+        x: node.position.x + 250,
+        y: node.position.y + index * 100,
+      };
+
+      return {
+        id: newNodeId,
+        position: newPosition,
+        data: {
+          label: query,
+          displayLabel: `Researching on ${query}`,
+          content: '',
+          status: 'researching',
         },
-        body: JSON.stringify({ bulletPointText }),
-      });
+        type: 'expandable',
+        style: {
+          backgroundColor: '#ffd699',
+        },
+        sourcePosition: 'right',
+        targetPosition: 'left',
+      };
+    });
 
-      if (!response.ok) {
-        throw new Error('Failed to generate search queries');
-      }
+    const newEdges = newNodeIds.map((newNodeId) => ({
+      id: `e-${id}-${newNodeId}`,
+      source: id,
+      target: newNodeId,
+      type: 'smoothstep',
+      animated: true,
+      style: { stroke: '#000', strokeWidth: 2 },
+    }));
 
-      const result = await response.json();
-      const searchQueries = result.searchQueries;
+    reactFlowInstance.setNodes((nds) => nds.concat(newNodes));
+    reactFlowInstance.setEdges((eds) => eds.concat(newEdges));
 
-      // For each search query, create a new node
-      const newNodeIds = searchQueries.map(() => `detail-${Date.now()}-${Math.random()}`);
+    // Now populate each node with details
+    await Promise.all(
+      newNodeIds.map((newNodeId, index) => {
+        const query = detailQueries[index];
+        return addDetailNode(newNodeId, query);
+      })
+    );
 
-      const node = reactFlowInstance.getNode(id);
-      if (!node) return;
-
-      // Create all nodes first
-      const newNodes = newNodeIds.map((newNodeId, index) => {
-        const query = searchQueries[index];
-        const newPosition = {
-          x: node.position.x + 250,
-          y: node.position.y + index * 100, // Adjust y position to avoid overlap
-        };
-
-        return {
-          id: newNodeId,
-          position: newPosition,
-          data: {
-            label: query,
-            displayLabel: `Researching on ${query}`,
-            content: '',
-            status: 'researching',
-          },
-          type: 'expandable',
-          style: {
-            backgroundColor: '#ffd699', // Light orange
-          },
-          sourcePosition: 'right',
-          targetPosition: 'left',
-        };
-      });
-
-      const newEdges = newNodeIds.map((newNodeId) => ({
-        id: `e-${id}-${newNodeId}`,
-        source: id,
-        target: newNodeId,
-        type: 'smoothstep',
-        animated: true,
-        style: { stroke: '#000', strokeWidth: 2 },
-      }));
-
-      reactFlowInstance.setNodes((nds) => nds.concat(newNodes));
-      reactFlowInstance.setEdges((eds) => eds.concat(newEdges));
-
-      // Now process fetching content for all nodes in parallel
-      await Promise.all(
-        newNodeIds.map((newNodeId, index) => {
-          const query = searchQueries[index];
-          return addDetailNode(newNodeId, query);
-        })
-      );
-    } catch (error) {
-      console.error(error);
-      // Handle error
-    }
+    setOpenDetailsDialog(false);
+    setDetailQueries([]);
+    setNewDetailQuery("");
   };
 
-  // Function to add detail node and fetch content
   const addDetailNode = async (newNodeId: string, query: string) => {
-    // Fetch content for the new node
     try {
-      // Fetch detailed content using our new API
       const response = await fetch('/api/researchDetails', {
         method: 'POST',
         headers: {
@@ -350,7 +364,6 @@ const ExpandableNode: React.FC<NodeProps> = ({
       const contentData = result.content;
       const sources = result.sources;
 
-      // Update the node with the generated content
       updateNode(newNodeId, {
         data: {
           status: 'done',
@@ -359,7 +372,7 @@ const ExpandableNode: React.FC<NodeProps> = ({
           sources,
         },
         style: {
-          backgroundColor: '#ffffff', // White
+          backgroundColor: '#ffffff',
         },
       });
     } catch (error) {
@@ -371,57 +384,22 @@ const ExpandableNode: React.FC<NodeProps> = ({
           content: 'Failed to fetch data.',
         },
         style: {
-          backgroundColor: '#ffffff', // White
+          backgroundColor: '#ffffff',
         },
       });
     }
   };
 
-  // Custom renderer for list items to include "Details >" button
+  // Renderers: We remove the li custom renderer that added detail buttons
   const renderers = {
-    li: ({ children, ...props }) => {
-      // Instead of extracting text, you can use React's Children utilities
-      const extractText = (children) => {
-        return React.Children.toArray(children)
-          .map(child => {
-            if (typeof child === 'string') return child;
-            if (child.props && child.props.children) {
-              return extractText(child.props.children);
-            }
-            return '';
-          })
-          .join('');
-      };
-    
-      const bulletPointText = extractText(children);
-    
-      return (
-        <li {...props} style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ flexGrow: 1 }}>
-            {children}
-          </span>
-          <Button
-            
-            onClick={() => handleDetails(bulletPointText)}
-            style={{ marginLeft: '8px' }}
-          >
-            Details &gt;
-          </Button>
-        </li>
-      );
-    },
     a: ({ node, ...props }) => (
       <a
-        style={{
-          color: "#1a0dab", // Distinct blue color
-          textDecoration: "underline",
-        }}
+        className="text-blue-600 underline"
         {...props}
       />
     ),
   };
 
-  // Retrieve all contextNodes from the store
   const { nodes: allNodes } = useFlowStore.getState();
   const contextNodes = allNodes.filter((node) => node.type === "contextNode");
 
@@ -435,124 +413,181 @@ const ExpandableNode: React.FC<NodeProps> = ({
         <Button onClick={handleFollowUp}>Follow-up</Button>
       </NodeToolbar>
 
-      {/* Handles for edge connections */}
+      {/* Handles for edges */}
       {targetPosition && (
         <Handle
           type="target"
           position={targetPosition}
-          style={{
-            top: "50%",
-            transform: "translateY(-50%)",
-            background: "#555",
-          }}
+          className="top-1/2 -translate-y-1/2 transform bg-gray-700"
+          style={{ background: "#555" }}
         />
       )}
       {sourcePosition && (
         <Handle
           type="source"
           position={sourcePosition}
-          style={{
-            top: "50%",
-            transform: "translateY(-50%)",
-            background: "#555",
-          }}
+          className="top-1/2 -translate-y-1/2 transform bg-gray-700"
+          style={{ background: "#555" }}
         />
       )}
 
-      {/* Popover for expandable content */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="default" style={buttonStyle}>
-            <strong>{data.displayLabel || data.label}</strong>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          style={{
-            width: "50rem",
-            padding: "0px",
-            maxHeight: "400px",
-            overflowY: "auto",
-          }}
-        >
-          {/* Wrap the content with ContextMenu */}
-          <ContextMenu>
-            <ContextMenuTrigger asChild>
-              <div style={{ color: "#000" }}>
-                {data.content ? (
-                  <div>
-                    <ReactMarkdown
-                      className="prose prose-lg dark:prose-invert max-w-none"
-                      remarkPlugins={[remarkGfm]}
-                      components={renderers}
-                    >
-                      {data.content}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  <p>No content available.</p>
-                )}
-              </div>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuSub>
-                <ContextMenuSubTrigger>Add to console</ContextMenuSubTrigger>
-                <ContextMenuSubContent>
-                  {contextNodes.length > 0 ? (
-                    contextNodes.map((contextNode) => (
-                      <ContextMenuItem
-                        key={contextNode.id}
-                        onSelect={() => handleAddToConsole(contextNode.id)}
+      {/* Node Content */}
+      <div className={nodeClassName} style={{ backgroundColor }}>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="default" className="bg-white p-2 hover:bg-yellow-200">
+              <strong className="text-black">{data.displayLabel || data.label}</strong>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[50rem] p-0 max-h-[500px] overflow-y-auto bg-white">
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <div className="text-black">
+                  {data.content ? (
+                    <div>
+                      <ReactMarkdown
+                        className="prose prose-md p-2 dark:prose-invert max-w-none"
+                        remarkPlugins={[remarkGfm]}
+                        components={renderers}
                       >
-                        {contextNode.data.label || contextNode.id}
-                      </ContextMenuItem>
-                    ))
+                        {data.content}
+                      </ReactMarkdown>
+                    </div>
                   ) : (
-                    <ContextMenuItem disabled>No Context Nodes Available</ContextMenuItem>
+                    <p>No content available.</p>
                   )}
-                </ContextMenuSubContent>
-              </ContextMenuSub>
-            </ContextMenuContent>
-          </ContextMenu>
-        </PopoverContent>
-      </Popover>
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuSub>
+                  <ContextMenuSubTrigger>Add to console</ContextMenuSubTrigger>
+                  <ContextMenuSubContent>
+                    {contextNodes.length > 0 ? (
+                      contextNodes.map((contextNode) => (
+                        <ContextMenuItem
+                          key={contextNode.id}
+                          onSelect={() => handleAddToConsole(contextNode.id)}
+                        >
+                          {contextNode.data.label || contextNode.id}
+                        </ContextMenuItem>
+                      ))
+                    ) : (
+                      <ContextMenuItem disabled>No Context Nodes Available</ContextMenuItem>
+                    )}
+                  </ContextMenuSubContent>
+                </ContextMenuSub>
+                <ContextMenuItem onSelect={handleGetDetails}>
+                  Get Details
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          </PopoverContent>
+        </Popover>
 
-      {/* Dialog for follow-up */}
-      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+        {/* Expand/Collapse button */}
+        <Button onClick={toggleExpansion} className="ml-2">
+          {isExpanded ? "<" : ">"}
+        </Button>
+      </div>
+
+      {/* Follow-up Dialog (No automatic queries, just user input) */}
+      <Dialog open={openFollowupDialog} onOpenChange={setOpenFollowupDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Follow-up</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {loadingFollowUps ? (
-              <div>Loading follow-up options...</div>
-            ) : (
-              <>
-                <Input
-                  placeholder="Enter your own follow-up query"
-                  value={customQuery}
-                  onChange={(e) => setCustomQuery(e.target.value)}
-                  disabled={loadingNewNode}
-                />
-                <Button
-                  onClick={() => addFollowUpNode(customQuery)}
-                  disabled={!customQuery || loadingNewNode}
-                >
-                  Submit
-                </Button>
-                {followUpOptions.map((option, index) => (
-                  <Button
-                    key={index}
-                    className="w-full"
-                    onClick={() => addFollowUpNode(option)}
-                    disabled={loadingNewNode}
-                  >
-                    {option}
-                  </Button>
-                ))}
-              </>
+            <Input
+              placeholder="Enter your Google search query"
+              value={followupQuery}
+              onChange={(e) => setFollowupQuery(e.target.value)}
+              disabled={loadingNewNode}
+            />
+            <Button
+              onClick={() => addFollowUpNode(followupQuery)}
+              disabled={!followupQuery || loadingNewNode}
+            >
+              Submit
+            </Button>
+            {loadingNewNode && (
+              <div className="flex justify-center">
+                <Progress value={50} className="w-[60%]" />
+              </div>
             )}
-            {loadingNewNode && <div>Generating content...</div>}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Details Dialog with queries card */}
+      <Dialog open={openDetailsDialog} onOpenChange={setOpenDetailsDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+            <DialogTitle>Details</DialogTitle>
+        </DialogHeader>
+          {loadingQueries ? (
+            <div className="flex flex-col items-center justify-center space-y-4 p-4">
+              <div>Generating queries...</div>
+              <Progress value={50} className="w-[60%]" />
+            </div>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Edit Queries</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {detailQueries.map((query, index) => (
+                  <div key={index} className="flex items-center space-x-2">
+                    <Input
+                      value={query}
+                      onChange={(e) => {
+                        const newQueries = [...detailQueries];
+                        newQueries[index] = e.target.value;
+                        setDetailQueries(newQueries);
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        const newQueries = detailQueries.filter((_, i) => i !== index);
+                        setDetailQueries(newQueries);
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex items-center space-x-2">
+                  <Input
+                    placeholder="Add new query"
+                    value={newDetailQuery}
+                    onChange={(e) => setNewDetailQuery(e.target.value)}
+                  />
+                  <Button
+                    onClick={() => {
+                      if (newDetailQuery.trim()) {
+                        setDetailQueries([...detailQueries, newDetailQuery.trim()]);
+                        setNewDetailQuery("");
+                      }
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-end space-x-2">
+                <Button variant="secondary" onClick={() => setOpenDetailsDialog(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={confirmDetailQueries}
+                  disabled={detailQueries.length === 0}
+                >
+                  Confirm
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
         </DialogContent>
       </Dialog>
     </div>

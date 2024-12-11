@@ -11,8 +11,13 @@ export interface ColumnDefinition {
 
 export interface IdeaNode {
   nodeId: string;
-  searchQuery: string;
+  google_search_ideas: string[];
   rootNodeId: string;
+}
+
+export interface Message {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 export interface FlowNode {
@@ -28,9 +33,10 @@ export interface FlowNode {
     content?: string;
     status?: string;
     isRoot?: boolean;
-    rows?: any[]; // Updated from spreadsheetData to rows
+    rows?: any[];
     columnDefinitions?: ColumnDefinition[];
-    contextEntries?: string[]; 
+    contextEntries?: string[];
+    conversation?: Message[]; // Added to store messages for chatbot nodes
   };
   sourcePosition?: string;
   targetPosition?: string;
@@ -46,11 +52,6 @@ export interface FlowEdge {
   style?: React.CSSProperties;
 }
 
-export interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
 interface FlowState {
   nodes: FlowNode[];
   edges: FlowEdge[];
@@ -61,7 +62,6 @@ interface FlowState {
   query: string;
   openSpreadsheetNodeId: string | null;
   openChatbotNodeId: string | null;
-  conversations: Record<string, Message[]>;
   openContextNodeId: string | null;
   // Actions
   addContextEntry: (nodeId: string, entry: string) => void;
@@ -80,9 +80,9 @@ interface FlowState {
   setOpenSpreadsheetNodeId: (nodeId: string | null) => void;
   setOpenChatbotNodeId: (nodeId: string | null) => void;
   updateColumnDefinitions: (nodeId: string, columnDefinitions: ColumnDefinition[]) => void;
-  appendMessage: (nodeId: string, message: Message) => void;
-  setConversation: (nodeId: string, messages: Message[]) => void;
-  removeConversation: (nodeId: string) => void;
+  updateContextNodeLabel: (nodeId: string, newLabel: string) => void;
+  updateChatNodeLabel: (nodeId: string, newLabel: string) => void;
+  updateChatbotConversation: (nodeId: string, messages: Message[]) => void;
   setOpenContextNodeId: (nodeId: string | null) => void;
 }
 
@@ -91,13 +91,13 @@ export const useFlowStore = create<FlowState>((set) => ({
   edges: [],
   ideaNodesArray: [],
   areasData: null,
-  showFlow: false,
+  showFlow: true,
   loading: false,
   query: '',
   openSpreadsheetNodeId: null,
   openChatbotNodeId: null,
   openContextNodeId: null,
-  conversations: {},
+
   setNodes: (nodes) =>
     set((state) => ({
       nodes: typeof nodes === 'function' ? nodes(state.nodes) : nodes,
@@ -131,7 +131,7 @@ export const useFlowStore = create<FlowState>((set) => ({
       query: '',
       openSpreadsheetNodeId: null,
       openChatbotNodeId: null,
-      conversations: {},
+      openContextNodeId: null,
     }),
   updateNodePosition: (nodeId, position) =>
     set((state) => ({
@@ -145,10 +145,7 @@ export const useFlowStore = create<FlowState>((set) => ({
         node.id === nodeId
           ? {
               ...node,
-              data: {
-                ...node.data,
-                rows,
-              },
+              data: { ...node.data, rows },
             }
           : node
       ),
@@ -159,35 +156,37 @@ export const useFlowStore = create<FlowState>((set) => ({
     set((state) => ({
       nodes: state.nodes.map((node) =>
         node.id === nodeId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                columnDefinitions,
-              },
-            }
+          ? { ...node, data: { ...node.data, columnDefinitions } }
           : node
       ),
     })),
-  appendMessage: (nodeId, message) =>
+  updateContextNodeLabel: (nodeId, newLabel) =>
     set((state) => ({
-      conversations: {
-        ...state.conversations,
-        [nodeId]: [...(state.conversations[nodeId] || []), message],
-      },
+      nodes: state.nodes.map((node) =>
+        node.id === nodeId
+          ? { ...node, data: { ...node.data, label: newLabel } }
+          : node
+      ),
     })),
-  setConversation: (nodeId, messages) =>
+  updateChatNodeLabel: (nodeId, newLabel) =>
     set((state) => ({
-      conversations: {
-        ...state.conversations,
-        [nodeId]: messages,
-      },
+      nodes: state.nodes.map((node) =>
+        node.id === nodeId
+          ? { ...node, data: { ...node.data, label: newLabel } }
+          : node
+      ),
     })),
-  removeConversation: (nodeId) =>
-    set((state) => {
-      const { [nodeId]: _, ...rest } = state.conversations;
-      return { conversations: rest };
-    }),
+
+  // New action to store conversation in node data
+  updateChatbotConversation: (nodeId, messages) =>
+    set((state) => ({
+      nodes: state.nodes.map((node) =>
+        node.id === nodeId
+          ? { ...node, data: { ...node.data, conversation: messages } }
+          : node
+      ),
+    })),
+
   addContextEntry: (nodeId, entry) =>
     set((state) => ({
       nodes: state.nodes.map((node) =>

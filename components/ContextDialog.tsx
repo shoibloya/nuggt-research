@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { X } from "lucide-react";
 import { useFlowStore } from "@/storage/store";
+import { Input } from "@/components/ui/input"; // Assuming you have a styled Input component
 
 export default function ContextDialog() {
   const {
@@ -15,13 +16,22 @@ export default function ContextDialog() {
     setOpenContextNodeId,
     nodes,
     addContextEntry,
+    updateContextNodeLabel,
   } = useFlowStore();
 
   const [inputValue, setInputValue] = useState("");
+  const [labelValue, setLabelValue] = useState("");
 
-  // Get the current node's context entries
+  // Get the current node's context entries and label
   const currentNode = nodes.find((node) => node.id === openContextNodeId);
   const contextEntries = currentNode?.data?.contextEntries || [];
+
+  // Initialize labelValue when we have a node
+  React.useEffect(() => {
+    if (currentNode && currentNode.data.label) {
+      setLabelValue(currentNode.data.label);
+    }
+  }, [currentNode]);
 
   const handleAdd = () => {
     if (inputValue.trim() !== "" && openContextNodeId) {
@@ -32,6 +42,12 @@ export default function ContextDialog() {
 
   const handleClose = () => {
     setOpenContextNodeId(null);
+  };
+
+  const handleLabelSave = () => {
+    if (openContextNodeId && labelValue.trim() !== "") {
+      updateContextNodeLabel(openContextNodeId, labelValue.trim());
+    }
   };
 
   if (!openContextNodeId) {
@@ -53,22 +69,32 @@ export default function ContextDialog() {
 
         {/* Content */}
         <CardContent className="flex-grow p-4 overflow-y-auto">
+          {/* Rename context label */}
+          <div className="mb-4 flex items-center space-x-2">
+            <Input
+              value={labelValue}
+              onChange={(e) => setLabelValue(e.target.value)}
+              placeholder="Rename context..."
+              className="flex-1"
+            />
+            <Button onClick={handleLabelSave}>Save</Button>
+          </div>
 
-        {/* Display Context Entries */}
-          
-            <ScrollArea className="h-full">
-              <div className="flex space-y-2 flex-col">
-                {contextEntries.map((entry, index) => (
-                  <div
-                    key={index}
-                    className="bg-blue-100 text-blue-900 px-4 py-2 rounded-md break-words"
-                  >
-                    {entry}
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
+          {/* Display Context Entries */}
+          <ScrollArea className="h-full">
+            <div className="flex space-y-2 flex-col">
+              {contextEntries.map((entry, index) => (
+                <div
+                  key={index}
+                  className="bg-blue-100 text-blue-900 px-4 py-2 rounded-md break-words"
+                >
+                  {entry}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
         </CardContent>
+
         <CardFooter className="flex flex-col space-y-4 p-4 border-t shrink-0">
           {/* Textarea and Add Button */}
           <div className="flex w-full space-x-2">
@@ -76,9 +102,9 @@ export default function ContextDialog() {
               placeholder="Enter context..."
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={async event => {
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault(); // Prevent form submission if inside a form
+              onKeyDown={async (event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
                   handleAdd();
                 }
               }}
@@ -86,8 +112,6 @@ export default function ContextDialog() {
             />
             <Button className="h-14" onClick={handleAdd}>Add</Button>
           </div>
-
-          
         </CardFooter>
       </Card>
     </div>
