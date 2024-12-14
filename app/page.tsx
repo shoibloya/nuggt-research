@@ -19,12 +19,9 @@ import SignInForm from "@/components/SignInForm";
 import { cn } from "@/lib/utils";
 import { DotPattern } from "@/components/ui/dot-pattern";
 
-// Firebase imports for Firestore and Auth
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-
-// Import the cleanData utility
 import { cleanData } from "@/utils/cleanData";
 
 const nodeWidth = 200;
@@ -53,11 +50,29 @@ const FlowPage = () => {
 
   const [user, setUser] = React.useState<any>(null);
   const [authLoading, setAuthLoading] = React.useState(true);
-  
-  // Track if data is loaded from Firestore
-  const [dataLoaded, setDataLoaded] = React.useState(false);
 
-  // Monitor authentication state
+  const [dataLoaded, setDataLoaded] = React.useState(false);
+  const [localLastUpdated, setLocalLastUpdated] = React.useState<number>(0);
+  const [docExists, setDocExists] = React.useState(false);
+
+  // Track if we have unsaved changes
+  const changesPendingRef = React.useRef(false);
+
+  // Track saving state for button
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    const localData = localStorage.getItem("userFlowData");
+    if (localData) {
+      const parsed = JSON.parse(localData);
+      const { nodes: localNodes, edges: localEdges, ideaNodesArray: localIdeaNodesArray, lastUpdated } = parsed;
+      if (localNodes) setNodes(localNodes);
+      if (localEdges) setEdges(localEdges);
+      if (localIdeaNodesArray) setIdeaNodesArray(localIdeaNodesArray);
+      if (lastUpdated) setLocalLastUpdated(lastUpdated);
+    }
+  }, [setNodes, setEdges, setIdeaNodesArray]);
+
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -67,22 +82,18 @@ const FlowPage = () => {
     return () => unsubscribe();
   }, []);
 
-  // Handle Google Sign-In
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      console.log("Signed in successfully with Google!");
     } catch (error) {
       console.error("Error signing in with Google:", error);
     }
   };
 
-  // Handle Sign-Out
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      console.log("Signed out successfully!");
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -111,6 +122,7 @@ const FlowPage = () => {
     };
   
     useFlowStore.getState().addNode(newNode);
+    immediateSave();
   };
 
   const addChatbotNode = () => {
@@ -131,6 +143,7 @@ const FlowPage = () => {
     };
 
     useFlowStore.getState().addNode(newNode);
+    immediateSave();
   };
 
   const addContextNode = () => {
@@ -148,6 +161,7 @@ const FlowPage = () => {
       targetPosition: "left",
     };
     useFlowStore.getState().addNode(newNode);
+    immediateSave();
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -187,6 +201,7 @@ const FlowPage = () => {
     setIdeaNodesArray([...ideaNodesArray, ...generatedIdeaNodesArray]);
     setShowAreaSelection(false);
     setAreasData(null);
+    immediateSave();
   };
 
   const processGraphData = (areas: any[]) => {
@@ -318,7 +333,6 @@ const FlowPage = () => {
     setShowAreaSelection(false);
   };
 
-  // Fetch user data from Firestore on login (only if doc exists)
   React.useEffect(() => {
     const loadUserData = async () => {
       if (user?.email) {
@@ -327,13 +341,17 @@ const FlowPage = () => {
 
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data.nodes) setNodes(data.nodes);
-          if (data.edges) setEdges(data.edges);
-          if (data.ideaNodesArray) setIdeaNodesArray(data.ideaNodesArray);
-          // Set dataLoaded to true after we've loaded data
+          setDocExists(true);
+          const firestoreLastUpdated = data.lastUpdated || 0;
+          if (firestoreLastUpdated > localLastUpdated) {
+            if (data.nodes) setNodes(data.nodes);
+            if (data.edges) setEdges(data.edges);
+            if (data.ideaNodesArray) setIdeaNodesArray(data.ideaNodesArray);
+            setLocalLastUpdated(firestoreLastUpdated);
+          }
           setDataLoaded(true);
         } else {
-          // If no doc, still mark data as loaded
+          setDocExists(false);
           setDataLoaded(true);
         }
       }
@@ -341,45 +359,70 @@ const FlowPage = () => {
     if (user?.email) {
       loadUserData();
     }
-  }, [user, setNodes, setEdges, setIdeaNodesArray]);
-
-  // Debounce to avoid many writes
-  function debounce(func: () => void, delay: number) {
-    let timer: NodeJS.Timeout;
-    return () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        func();
-      }, delay);
-    };
-  }
-
-  const saveData = React.useCallback(
-    debounce(async () => {
-      // Only save if dataLoaded is true
-      if (user?.email && dataLoaded) {
-        const docRef = doc(db, "users", user.email);
-        const dataToSave = {
-          nodes: cleanData(nodes),
-          edges: cleanData(edges),
-          ideaNodesArray: cleanData(ideaNodesArray),
-        };
-        try {
-          await setDoc(docRef, dataToSave, { merge: true });
-          console.log("Data saved successfully!");
-        } catch (error) {
-          console.error("Error saving data:", error);
-        }
-      }
-    }, 1000),
-    [user, nodes, edges, ideaNodesArray, dataLoaded]
-  );
+  }, [user, setNodes, setEdges, setIdeaNodesArray, localLastUpdated]);
 
   React.useEffect(() => {
+    const dataToSaveLocally = {
+      nodes,
+      edges,
+      ideaNodesArray,
+      lastUpdated: Date.now(),
+    };
+    setLocalLastUpdated(dataToSaveLocally.lastUpdated);
+    localStorage.setItem("userFlowData", JSON.stringify(dataToSaveLocally));
+    changesPendingRef.current = true;
+  }, [nodes, edges, ideaNodesArray]);
+
+  // Warn user on refresh/close if there are unsaved changes
+  React.useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (changesPendingRef.current) {
+        event.preventDefault();
+        event.returnValue = "You have unsaved changes. Are you sure you want to leave?";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
+  const saveData = async () => {
     if (user?.email && dataLoaded) {
-      saveData();
+      setIsSaving(true);
+      const docRef = doc(db, "users", user.email);
+
+      const newNodes = cleanData(nodes);
+      const newEdges = cleanData(edges);
+      const newIdeaNodesArray = cleanData(ideaNodesArray);
+
+      const updates = {
+        nodes: newNodes,
+        edges: newEdges,
+        ideaNodesArray: newIdeaNodesArray,
+        lastUpdated: Date.now(),
+      };
+
+      try {
+        if (!docExists) {
+          await setDoc(docRef, updates, { merge: true });
+          setDocExists(true);
+        } else {
+          await updateDoc(docRef, updates);
+        }
+        console.log("Data saved successfully!");
+        changesPendingRef.current = false; // Mark changes as saved
+      } catch (error) {
+        console.error("Error saving data:", error);
+      } finally {
+        setIsSaving(false);
+      }
     }
-  }, [nodes, edges, ideaNodesArray, user, saveData, dataLoaded]);
+  };
+
+  const immediateSave = async () => {
+    // Mark changes; user must click the Save button to persist to Firebase
+    changesPendingRef.current = true;
+  };
 
   if (authLoading) {
     return (
@@ -404,6 +447,40 @@ const FlowPage = () => {
         overflow: "hidden",
       }}
     >
+      <div
+        style={{
+          position: "fixed",
+          top: "20px",
+          right: "20px",
+          zIndex: 100,
+        }}
+      >
+        <Button variant="destructive" onClick={saveData} disabled={isSaving}>
+          {isSaving ? (
+            <span className="flex items-center space-x-2">
+              <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle 
+                  className="opacity-25" 
+                  cx="12" 
+                  cy="12" 
+                  r="10" 
+                  stroke="currentColor" 
+                  strokeWidth="4">
+                </circle>
+                <path 
+                  className="opacity-75" 
+                  fill="currentColor" 
+                  d="M4 12a8 8 0 018-8v8H4z">
+                </path>
+              </svg>
+              <span>Saving...</span>
+            </span>
+          ) : (
+            "Save"
+          )}
+        </Button>
+      </div>
+
       {showFlow && (
         <div
           style={{

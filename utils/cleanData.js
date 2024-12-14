@@ -6,7 +6,9 @@
  * @returns {any} - The cleaned object or array with undefined values removed.
  */
  export function cleanData(obj) {
-    if (Array.isArray(obj)) {
+  // This removes all undefined values.
+  return JSON.parse(JSON.stringify(obj));  
+  if (Array.isArray(obj)) {
       return obj
         .map((item) => cleanData(item))
         .filter((item) => item !== undefined);

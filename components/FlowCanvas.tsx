@@ -30,7 +30,6 @@ interface FlowCanvasProps {
   ideaNodesArray: IdeaNode[];
 }
 
-// Define nodeTypes to include ChatbotNode
 const nodeTypes: NodeTypes = {
   expandable: ExpandableNode,
   spreadsheet: SpreadsheetNode,
@@ -69,15 +68,13 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     (changes) => {
       const updatedNodes = applyNodeChanges(changes, rfNodes);
       setRfNodes(updatedNodes);
-      setNodes(updatedNodes);
+      const nonPositionChanges = changes.filter(change => change.type !== 'position');
 
-      changes.forEach((change) => {
-        if (change.type === "position" && change.position) {
-          updateNodePosition(change.id, change.position);
-        }
-      });
+      if (nonPositionChanges.length > 0) {
+        setNodes(updatedNodes);
+      }
     },
-    [rfNodes, setRfNodes, setNodes, updateNodePosition]
+    [rfNodes, setRfNodes, setNodes]
   );
 
   const handleEdgesChange: OnEdgesChange = useCallback(
@@ -123,7 +120,6 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
   useEffect(() => {
     const processSearches = async () => {
       if (processingRef.current) {
-        console.log("Processing is already in progress. Skipping this run.");
         return;
       }
 
@@ -132,11 +128,7 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         return correspondingNode?.data.status === "waiting";
       });
 
-      console.log("Process Searches Triggered");
-      console.log("Pending Idea Nodes:", pendingIdeaNodes);
-
       if (pendingIdeaNodes.length === 0) {
-        console.log("No pending idea nodes to process.");
         return;
       }
 
@@ -144,7 +136,6 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
       for (const ideaNode of pendingIdeaNodes) {
         const { nodeId, searchQuery, rootNodeId } = ideaNode;
-        console.log(`Processing nodeId: ${nodeId} with searchQuery: ${searchQuery}`);
 
         updateNode(nodeId, {
           data: {
@@ -167,8 +158,6 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
               rootNodeId,
             }),
           });
-
-          console.log(`API call for nodeId: ${nodeId} completed with status: ${response.status}`);
 
           if (!response.ok) {
             throw new Error("Failed to fetch node content");
@@ -212,10 +201,8 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     };
 
     processSearches();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ideaNodesArray, rfNodes]);
 
-  // Re-layout function for expandable nodes
   const reLayoutExpandableNodes = () => {
     const allNodes = useFlowStore.getState().nodes;
     const allEdges = useFlowStore.getState().edges;
@@ -228,7 +215,11 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
     if (expandableNodes.length === 0) return;
 
-    const { nodes: layoutNodes } = getLayoutedElements(expandableNodes, expandableEdges, "LR");
+    const { nodes: layoutNodes } = getLayoutedElements(
+      expandableNodes,
+      expandableEdges,
+      "LR"
+    );
 
     const updatedNodes = allNodes.map((node) => {
       if (node.type === "expandable") {
@@ -243,7 +234,6 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
       return node;
     });
 
-    // Update store and React Flow
     setNodes(updatedNodes);
     setRfNodes(updatedNodes);
   };
@@ -284,13 +274,20 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     return { nodes: layoutNodes, edges };
   };
 
-  // Expose the arrange function globally so DockDemo button can call it
   useEffect(() => {
     (window as any).arrangeAllExpandableNodes = reLayoutExpandableNodes;
     return () => {
       (window as any).arrangeAllExpandableNodes = null;
     };
   }, []);
+
+  const handleNodeDragStop = useCallback(
+    (event, node) => {
+      updateNodePosition(node.id, node.position);
+      setNodes(rfNodes);
+    },
+    [rfNodes, updateNodePosition, setNodes]
+  );
 
   return (
     <>
@@ -313,10 +310,11 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
             edges={rfEdges}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
+            onNodeDragStop={handleNodeDragStop}
             nodesDraggable={true}
             elementsSelectable={true}
-            selectNodesOnDrag={true}
-            selectionOnDrag={true}
+            //selectNodesOnDrag={true}
+            //selectionOnDrag={true}
             fitView
             fitViewOptions={{ padding: 0.2 }}
             connectionLineType="smoothstep"
