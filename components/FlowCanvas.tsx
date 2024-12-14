@@ -241,6 +241,7 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
   const getLayoutedElements = (nodes: FlowNode[], edges: FlowEdge[], direction = "LR") => {
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
+    
 
     dagreGraph.setGraph({
       rankdir: direction,
@@ -250,8 +251,15 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
       marginy: 50,
     });
 
+    // Attempt to dynamically calculate node dimensions if available
+    // Otherwise fallback to default
     nodes.forEach((node) => {
-      dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+      const width = node.width;
+      //console.log(width);
+
+      const height = node.height;
+      //console.log(height);
+      dagreGraph.setNode(node.id, { width, height });
     });
 
     edges.forEach((edge) => {
@@ -265,8 +273,8 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
       return {
         ...node,
         position: {
-          x: nodeWithPosition.x - nodeWidth / 2,
-          y: nodeWithPosition.y - nodeHeight / 2,
+          x: nodeWithPosition.x - (nodeWithPosition.width / 2),
+          y: nodeWithPosition.y - (nodeWithPosition.height / 2),
         },
       };
     });
@@ -313,8 +321,6 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
             onNodeDragStop={handleNodeDragStop}
             nodesDraggable={true}
             elementsSelectable={true}
-            //selectNodesOnDrag={true}
-            //selectionOnDrag={true}
             fitView
             fitViewOptions={{ padding: 0.2 }}
             connectionLineType="smoothstep"

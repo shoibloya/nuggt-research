@@ -298,6 +298,7 @@ const FlowPage = () => {
   const getLayoutedElements = (nodes: any[], edges: any[], direction = "LR") => {
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
+    
 
     dagreGraph.setGraph({
       rankdir: direction,
@@ -452,7 +453,7 @@ const FlowPage = () => {
           position: "fixed",
           top: "20px",
           right: "20px",
-          zIndex: 100,
+          zIndex: 20,
         }}
       >
         <Button variant="destructive" onClick={saveData} disabled={isSaving}>
