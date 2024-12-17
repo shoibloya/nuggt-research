@@ -52,7 +52,6 @@ const FlowPage = () => {
   const [authLoading, setAuthLoading] = React.useState(true);
 
   const [dataLoaded, setDataLoaded] = React.useState(false);
-  const [localLastUpdated, setLocalLastUpdated] = React.useState<number>(0);
   const [docExists, setDocExists] = React.useState(false);
 
   // Track if we have unsaved changes
@@ -60,18 +59,6 @@ const FlowPage = () => {
 
   // Track saving state for button
   const [isSaving, setIsSaving] = React.useState(false);
-
-  React.useEffect(() => {
-    const localData = localStorage.getItem("userFlowData");
-    if (localData) {
-      const parsed = JSON.parse(localData);
-      const { nodes: localNodes, edges: localEdges, ideaNodesArray: localIdeaNodesArray, lastUpdated } = parsed;
-      if (localNodes) setNodes(localNodes);
-      if (localEdges) setEdges(localEdges);
-      if (localIdeaNodesArray) setIdeaNodesArray(localIdeaNodesArray);
-      if (lastUpdated) setLocalLastUpdated(lastUpdated);
-    }
-  }, [setNodes, setEdges, setIdeaNodesArray]);
 
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -343,13 +330,9 @@ const FlowPage = () => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setDocExists(true);
-          const firestoreLastUpdated = data.lastUpdated || 0;
-          if (firestoreLastUpdated > localLastUpdated) {
-            if (data.nodes) setNodes(data.nodes);
-            if (data.edges) setEdges(data.edges);
-            if (data.ideaNodesArray) setIdeaNodesArray(data.ideaNodesArray);
-            setLocalLastUpdated(firestoreLastUpdated);
-          }
+          if (data.nodes) setNodes(data.nodes);
+          if (data.edges) setEdges(data.edges);
+          if (data.ideaNodesArray) setIdeaNodesArray(data.ideaNodesArray);
           setDataLoaded(true);
         } else {
           setDocExists(false);
@@ -360,19 +343,7 @@ const FlowPage = () => {
     if (user?.email) {
       loadUserData();
     }
-  }, [user, setNodes, setEdges, setIdeaNodesArray, localLastUpdated]);
-
-  React.useEffect(() => {
-    const dataToSaveLocally = {
-      nodes,
-      edges,
-      ideaNodesArray,
-      lastUpdated: Date.now(),
-    };
-    setLocalLastUpdated(dataToSaveLocally.lastUpdated);
-    localStorage.setItem("userFlowData", JSON.stringify(dataToSaveLocally));
-    changesPendingRef.current = true;
-  }, [nodes, edges, ideaNodesArray]);
+  }, [user, setNodes, setEdges, setIdeaNodesArray]);
 
   // Warn user on refresh/close if there are unsaved changes
   React.useEffect(() => {
@@ -421,7 +392,6 @@ const FlowPage = () => {
   };
 
   const immediateSave = async () => {
-    // Mark changes; user must click the Save button to persist to Firebase
     changesPendingRef.current = true;
   };
 
