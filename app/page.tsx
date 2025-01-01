@@ -8,20 +8,24 @@ import { ButtonLoading } from "@/components/ButtonLoading";
 import { motion, AnimatePresence } from "framer-motion";
 import dagre from "dagre";
 import { DockDemo } from "@/components/DockDemo";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import { useFlowStore } from "@/storage/store";
 import SpreadsheetDialog from "@/components/SpreadsheetDialog";
 import ModernChatbot from "@/components/ModernChatbot";
 import ContextDialog from "@/components/ContextDialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import SignInForm from "@/components/SignInForm";
 import { cn } from "@/lib/utils";
 import { DotPattern } from "@/components/ui/dot-pattern";
 
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+} from "firebase/auth";
 import { cleanData } from "@/utils/cleanData";
 
 const nodeWidth = 200;
@@ -45,7 +49,7 @@ const FlowPage = () => {
     setAreasData,
   } = useFlowStore();
 
-  const [showSearchBox, setShowSearchBox] = React.useState(false);
+  const [showSearchBox, setShowSearchBox] = React.useState(true);
   const [showAreaSelection, setShowAreaSelection] = React.useState(false);
 
   const [user, setUser] = React.useState<any>(null);
@@ -60,6 +64,7 @@ const FlowPage = () => {
   // Track saving state for button
   const [isSaving, setIsSaving] = React.useState(false);
 
+  // Listen for auth state changes
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -69,6 +74,7 @@ const FlowPage = () => {
     return () => unsubscribe();
   }, []);
 
+  // Sign in with Google
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
@@ -78,6 +84,7 @@ const FlowPage = () => {
     }
   };
 
+  // Sign out
   const handleSignOut = async () => {
     try {
       await signOut(auth);
@@ -86,11 +93,13 @@ const FlowPage = () => {
     }
   };
 
+  // Generate unique label for newly created nodes
   const generateUniqueLabel = (type: string, baseLabel: string): string => {
     const count = nodes.filter((node) => node.type === type).length + 1;
     return `Untitled-${baseLabel}-${count}`;
   };
 
+  // Handlers for adding new nodes
   const addSpreadsheetNode = () => {
     const newNodeId = `spreadsheet-${uuidv4()}`;
     const uniqueLabel = generateUniqueLabel("spreadsheet", "Spreadsheet");
@@ -107,7 +116,7 @@ const FlowPage = () => {
       sourcePosition: "right",
       targetPosition: "left",
     };
-  
+
     useFlowStore.getState().addNode(newNode);
     immediateSave();
   };
@@ -151,6 +160,7 @@ const FlowPage = () => {
     immediateSave();
   };
 
+  // Handle search
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (query.trim()) {
@@ -172,7 +182,6 @@ const FlowPage = () => {
         setAreasData(data.areas);
         setShowSearchBox(false);
         setShowAreaSelection(true);
-
       } catch (error) {
         console.error(error);
       } finally {
@@ -181,8 +190,14 @@ const FlowPage = () => {
     }
   };
 
+  // Process the selected areas in the AreaSelection component
   const handleProcessSelection = (selectedAreasData: any) => {
-    const { nodes: generatedNodes, edges: generatedEdges, ideaNodesArray: generatedIdeaNodesArray } = processGraphData(selectedAreasData);
+    const {
+      nodes: generatedNodes,
+      edges: generatedEdges,
+      ideaNodesArray: generatedIdeaNodesArray,
+    } = processGraphData(selectedAreasData);
+
     setNodes([...nodes, ...generatedNodes]);
     setEdges([...edges, ...generatedEdges]);
     setIdeaNodesArray([...ideaNodesArray, ...generatedIdeaNodesArray]);
@@ -191,6 +206,7 @@ const FlowPage = () => {
     immediateSave();
   };
 
+  // Convert data into new nodes and edges
   const processGraphData = (areas: any[]) => {
     const nodesLocal: any[] = [];
     const edgesLocal: any[] = [];
@@ -279,13 +295,17 @@ const FlowPage = () => {
       "LR"
     );
 
-    return { nodes: layoutNodes, edges: layoutEdges, ideaNodesArray: ideaNodesArrayLocal };
+    return {
+      nodes: layoutNodes,
+      edges: layoutEdges,
+      ideaNodesArray: ideaNodesArrayLocal,
+    };
   };
 
+  // Layout
   const getLayoutedElements = (nodes: any[], edges: any[], direction = "LR") => {
     const dagreGraph = new dagre.graphlib.Graph();
     dagreGraph.setDefaultEdgeLabel(() => ({}));
-    
 
     dagreGraph.setGraph({
       rankdir: direction,
@@ -316,11 +336,13 @@ const FlowPage = () => {
     return { nodes, edges };
   };
 
+  // Toggle the search box
   const onWhatsAppClick = () => {
     setShowSearchBox(true);
     setShowAreaSelection(false);
   };
 
+  // Load user data if logged in
   React.useEffect(() => {
     const loadUserData = async () => {
       if (user?.email) {
@@ -340,8 +362,12 @@ const FlowPage = () => {
         }
       }
     };
+
     if (user?.email) {
       loadUserData();
+    } else {
+      // If user is not logged in, set dataLoaded to true so the rest can render
+      setDataLoaded(true);
     }
   }, [user, setNodes, setEdges, setIdeaNodesArray]);
 
@@ -350,7 +376,8 @@ const FlowPage = () => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (changesPendingRef.current) {
         event.preventDefault();
-        event.returnValue = "You have unsaved changes. Are you sure you want to leave?";
+        event.returnValue =
+          "You have unsaved changes. Are you sure you want to leave?";
       }
     };
 
@@ -358,43 +385,46 @@ const FlowPage = () => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
+  // Save data to Firestore (only if user is logged in)
   const saveData = async () => {
-    if (user?.email && dataLoaded) {
-      setIsSaving(true);
-      const docRef = doc(db, "users", user.email);
+    if (!user?.email || !dataLoaded) return;
 
-      const newNodes = cleanData(nodes);
-      const newEdges = cleanData(edges);
-      const newIdeaNodesArray = cleanData(ideaNodesArray);
+    setIsSaving(true);
+    const docRef = doc(db, "users", user.email);
 
-      const updates = {
-        nodes: newNodes,
-        edges: newEdges,
-        ideaNodesArray: newIdeaNodesArray,
-        lastUpdated: Date.now(),
-      };
+    const newNodes = cleanData(nodes);
+    const newEdges = cleanData(edges);
+    const newIdeaNodesArray = cleanData(ideaNodesArray);
 
-      try {
-        if (!docExists) {
-          await setDoc(docRef, updates, { merge: true });
-          setDocExists(true);
-        } else {
-          await updateDoc(docRef, updates);
-        }
-        console.log("Data saved successfully!");
-        changesPendingRef.current = false; // Mark changes as saved
-      } catch (error) {
-        console.error("Error saving data:", error);
-      } finally {
-        setIsSaving(false);
+    const updates = {
+      nodes: newNodes,
+      edges: newEdges,
+      ideaNodesArray: newIdeaNodesArray,
+      lastUpdated: Date.now(),
+    };
+
+    try {
+      if (!docExists) {
+        await setDoc(docRef, updates, { merge: true });
+        setDocExists(true);
+      } else {
+        await updateDoc(docRef, updates);
       }
+      console.log("Data saved successfully!");
+      changesPendingRef.current = false; // Mark changes as saved
+    } catch (error) {
+      console.error("Error saving data:", error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  // Mark changes as pending save
   const immediateSave = async () => {
     changesPendingRef.current = true;
   };
 
+  // Show a loading indicator if auth is still checking
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -403,12 +433,7 @@ const FlowPage = () => {
     );
   }
 
-  if (!user) {
-    return (
-      <SignInForm onSignIn={handleGoogleSignIn} />
-    );
-  }
-
+  // Render the main app
   return (
     <main
       style={{
@@ -418,40 +443,64 @@ const FlowPage = () => {
         overflow: "hidden",
       }}
     >
+      {/* Top-right: Login / Logout / Save */}
       <div
         style={{
           position: "fixed",
           top: "20px",
           right: "20px",
           zIndex: 20,
+          display: "flex",
+          gap: "8px",
         }}
       >
-        <Button variant="destructive" onClick={saveData} disabled={isSaving}>
-          {isSaving ? (
-            <span className="flex items-center space-x-2">
-              <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle 
-                  className="opacity-25" 
-                  cx="12" 
-                  cy="12" 
-                  r="10" 
-                  stroke="currentColor" 
-                  strokeWidth="4">
-                </circle>
-                <path 
-                  className="opacity-75" 
-                  fill="currentColor" 
-                  d="M4 12a8 8 0 018-8v8H4z">
-                </path>
-              </svg>
-              <span>Saving...</span>
-            </span>
-          ) : (
-            "Save"
-          )}
-        </Button>
+        {user ? (
+          <>
+            {/* Show Save button only for logged-in users */}
+            <Button variant="destructive" onClick={saveData} disabled={isSaving}>
+              {isSaving ? (
+                <span className="flex items-center space-x-2">
+                  <svg
+                    className="w-4 h-4 animate-spin"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8H4z"
+                    ></path>
+                  </svg>
+                  <span>Saving...</span>
+                </span>
+              ) : (
+                "Save"
+              )}
+            </Button>
+
+            {/* Sign Out Button */}
+            <Button variant="outline" onClick={handleSignOut}>
+              Sign Out
+            </Button>
+          </>
+        ) : (
+          // Login button if user is not logged in
+          <Button variant="outline" onClick={handleGoogleSignIn}>
+            Login
+          </Button>
+        )}
       </div>
 
+      {/* Dock with Add Spreadsheet/Chatbot/Context, only if showFlow */}
       {showFlow && (
         <div
           style={{
@@ -462,15 +511,16 @@ const FlowPage = () => {
             zIndex: 40,
           }}
         >
-          <DockDemo 
-            addSpreadsheetNode={addSpreadsheetNode} 
-            addChatbotNode={addChatbotNode} 
-            addContextNode={addContextNode} 
+          <DockDemo
+            addSpreadsheetNode={addSpreadsheetNode}
+            addChatbotNode={addChatbotNode}
+            addContextNode={addContextNode}
             onWhatsAppClick={onWhatsAppClick}
           />
         </div>
       )}
 
+      {/* Loading overlay */}
       {loading && (
         <div
           style={{
@@ -488,15 +538,16 @@ const FlowPage = () => {
         </div>
       )}
 
+      {/* Center area: SearchBox and AreaSelection */}
       <div
         style={{
-          position: 'absolute',
-          top: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
+          position: "absolute",
+          top: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
           zIndex: 50,
-          maxWidth: '800px',
-          width: '90%'
+          maxWidth: "800px",
+          width: "90%",
         }}
       >
         <AnimatePresence>
@@ -540,6 +591,7 @@ const FlowPage = () => {
         </AnimatePresence>
       </div>
 
+      {/* The main flow / dialogs */}
       {showFlow && (
         <>
           <FlowCanvas
