@@ -71,4 +71,3 @@ Nuggt helps you gather, organize, and store information to create reusable conte
 ---
 
 Happy exploring! 🌟
-"""
