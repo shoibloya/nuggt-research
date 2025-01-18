@@ -1,4 +1,4 @@
-#🚀Nuggt: Retrieve and store information to be used as context for LLM.
+# 🚀Nuggt: Retrieve and store information to be used as context for LLM.
 
 🎥 **Demo**  
 Check out the video for a step-by-step walkthrough (uploading soon)!  
