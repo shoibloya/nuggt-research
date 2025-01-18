@@ -5,8 +5,7 @@ Check out the video for a step-by-step walkthrough (uploading soon)!
 
 ---
 
-Nuggt helps you gather, organize, and store information to create reusable contexts for large language models (LLMs). Perfect for deep dives into any topic and enhancing AI conversations!  
-
+Nuggt helps you gather, organize, and store information to create reusable contexts for large language models (LLMs). Please checkout the Demo Video to better understand how to use the tool (it can be a bit complicated, I am working to improve the UI/UX)
 ---
 
 ## 🌟 Features
