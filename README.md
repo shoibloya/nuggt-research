@@ -1,40 +1,74 @@
-<<<<<<< HEAD
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚀 Nuggt: Retrieve and store information to be used as context for LLM.
 
-## Getting Started
+Join Discord: [Discord](https://discord.gg/N54SCevJ)
 
-First, run the development server:
+Nuggt helps you gather, organize, and store information to create reusable contexts for large language models (LLMs). Please checkout the Demo Video to better understand how to use the tool (it can be a bit complicated, I am working to improve the UI/UX)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+🎥 **Demo**  
+Check out the video for a step-by-step walkthrough: [Youtube Video](https://youtu.be/NrJRhufFc6Q)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🌟 Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **🔍 Search & Research**  
+  Gather info on any topic from the internet with the search feature.  
+  Example: Search "How to make a good elevator pitch" and explore a detailed research tree.
 
-## Learn More
+- **📚 Context Creation**  
+  Save important info to reusable contexts by highlighting and adding to the console. Use these to enrich chatbot conversations.
 
-To learn more about Next.js, take a look at the following resources:
+- **🤖 Chatbot with Contexts**  
+  Select a context to include in your conversations with the AI. Makes responses smarter and more relevant!
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **✨ Beautify Graphs**  
+  Auto-arrange your research nodes with a single click for easy navigation.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **📊 Spreadsheet (Coming Soon)**  
+  Manage your data better with this upcoming feature!
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🛠️ Setup
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-=======
-# nuggt-research
->>>>>>> b0906782c0f8dd3d492f4ffcc514f70d5d1ce2a8
+1. **Clone the Repo**  
+   ```bash
+   git clone https://github.com/shoibloya/nuggt-research.git
+   cd nuggt-research
+   ```
+
+2. **Create a `.env` File**  
+   In the project root, create a `.env` file and add the following keys:
+   ```env
+   OPENAI_API_KEY="your-openai-api-key"
+   TAVILY_API_KEY="your-tavily-api-key"
+   FIRECRAWL_API_KEY="your-firecrawl-api-key"
+   ```
+
+   **Optional (for login & Firebase storage):**  
+   Add these keys only if you want to log in and save data to Firebase:  
+   ```env
+   NEXTAUTH_SECRET="your-nextauth-secret"
+   NEXT_PUBLIC_FIREBASE_API_KEY="your-firebase-api-key"
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-firebase-auth-domain"
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-firebase-project-id"
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-firebase-storage-bucket"
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="your-firebase-messaging-sender-id"
+   NEXT_PUBLIC_FIREBASE_APP_ID="your-firebase-app-id"
+   NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="your-firebase-measurement-id"
+   ```
+
+3. **Install Dependencies**  
+   ```bash
+   npm install
+   ```
+
+4. **Run the App**  
+   ```bash
+   npm run dev
+   ```  
+   Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+Happy exploring! 🌟
