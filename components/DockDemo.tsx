@@ -23,27 +23,30 @@ export function DockDemo({
       <Dock magnification={60} distance={100}>
         {/* Google Spreadsheet Icon (Replaced with File Spreadsheet) */}
         <DockIcon
-          className="bg-black/10 dark:bg-white/10 p-3 cursor-pointer"
+          className="hidden bg-black/10 dark:bg-white/10 p-3 cursor-pointer"
           onClick={addSpreadsheetNode}
           aria-label="Add Spreadsheet"
+          title="Add Spreadsheet"
         >
           <Icons.fileSpreadsheet className="size-full" />
         </DockIcon>
 
         {/* Chatbot Icon */}
         <DockIcon
-          className="bg-black/10 dark:bg-white/10 p-3 cursor-pointer"
+          className="hidden bg-black/10 dark:bg-white/10 p-3 cursor-pointer"
           onClick={addChatbotNode}
           aria-label="Add Chatbot"
+          title="Add Chatbot"
         >
           <Bot className="size-full" />
         </DockIcon>
 
         {/* Context Node Icon (Replaced with Database Icon) */}
         <DockIcon
-          className="bg-black/10 dark:bg-white/10 p-3 cursor-pointer"
+          className="hidden bg-black/10 dark:bg-white/10 p-3 cursor-pointer"
           onClick={addContextNode}
           aria-label="Add Context Node"
+          title="Add Context Node"
         >
           <Icons.database className="size-full" />
         </DockIcon>
@@ -53,6 +56,7 @@ export function DockDemo({
           className="bg-black/10 dark:bg-white/10 p-3 cursor-pointer"
           onClick={onWhatsAppClick}
           aria-label="Start New Search"
+          title="Start New Search"
         >
           <Icons.search className="size-full" />
         </DockIcon>
@@ -68,6 +72,7 @@ export function DockDemo({
             }
           }}
           aria-label="Arrange Expandable Nodes"
+          title="Arrange Graph Nodes"
         >
           <Icons.sparkles className="size-full" />
         </DockIcon>

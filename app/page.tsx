@@ -107,8 +107,8 @@ const FlowPage = () => {
       id: newNodeId,
       type: "spreadsheet",
       position: {
-        x: Math.random() * 600 - 300,
-        y: Math.random() * 600 - 300,
+        x: 0,
+        y: 0,
       },
       data: {
         label: uniqueLabel,
@@ -551,24 +551,26 @@ const FlowPage = () => {
         }}
       >
         <AnimatePresence>
-          {showSearchBox && !loading && (
-            <motion.div
-              key="searchbox"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="p-4">
-                <SearchBox
-                  query={query}
-                  setQuery={setQuery}
-                  handleSubmit={handleSubmit}
-                  showFlow={showFlow}
-                />
-              </Card>
-            </motion.div>
-          )}
+        {showSearchBox && !loading && (
+          <motion.div
+            key="searchbox"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="p-4">
+              <SearchBox
+                query={query}
+                setQuery={setQuery}
+                handleSubmit={handleSubmit}
+                showFlow={showFlow}
+                // 1) Pass in the onClose prop:
+                onClose={() => setShowSearchBox(false)}
+              />
+            </Card>
+          </motion.div>
+        )}
         </AnimatePresence>
 
         <AnimatePresence>

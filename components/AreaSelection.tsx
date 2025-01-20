@@ -98,7 +98,7 @@ const AreaSelection: React.FC<AreaSelectionProps> = ({ areasData, onProcessSelec
     <div className="p-4">
       <div className="w-full mb-6 flex flex-col md:flex-row justify-between items-center">
         <h1 className="text-2xl font-bold text-center md:text-left">
-          Select Areas and Queries to Explore
+          Delete Areas You Don't Like Then Click On Proceed 
         </h1>
         <Button onClick={handleProcess} className="mt-4 md:mt-0">
           Proceed

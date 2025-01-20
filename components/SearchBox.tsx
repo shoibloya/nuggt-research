@@ -10,6 +10,8 @@ interface SearchBoxProps {
   setQuery: React.Dispatch<React.SetStateAction<string>>;
   handleSubmit: (event: React.FormEvent) => void;
   showFlow: boolean;
+  // 1) Add this line:
+  onClose: () => void;
 }
 
 const SearchBox: React.FC<SearchBoxProps> = ({
@@ -17,6 +19,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   setQuery,
   handleSubmit,
   showFlow,
+  // 2) Destructure the new prop:
+  onClose,
 }) => {
   // If the user clicks on one of the sample topics, this sets the query and triggers the search.
   const handleTopicClick = (topic: string) => {
@@ -59,7 +63,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   ];
 
   return (
-    <div className="space-y-4">
+    // 3) Add "relative" here so we can absolutely position the Close button:
+    <div className="space-y-4 relative">
       {/* Header */}
       <h2 className="text-lg font-semibold text-center">
         Gather content on any topic
@@ -108,6 +113,14 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           </React.Fragment>
         ))}
       </div>
+
+      {/* 4) Add the close button in the bottom-right corner (red background) */}
+      <Button
+        className="absolute bottom-2 right-2 bg-red-500 text-white"
+        onClick={onClose}
+      >
+        Close
+      </Button>
     </div>
   );
 };
