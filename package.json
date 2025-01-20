@@ -55,6 +55,7 @@
     "firebase": "^11.0.2",
     "framer-motion": "^11.11.17",
     "handsontable": "^14.6.1",
+    "heroicons": "^2.2.0",
     "langchain": "^0.3.5",
     "lodash.debounce": "^4.0.8",
     "lucide-react": "^0.454.0",

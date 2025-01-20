@@ -1,128 +1,109 @@
-"use client";
+"use client"
 
-import React from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import type React from "react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+import { X } from "lucide-react"
 
 interface SearchBoxProps {
-  query: string;
-  setQuery: React.Dispatch<React.SetStateAction<string>>;
-  handleSubmit: (event: React.FormEvent) => void;
-  showFlow: boolean;
-  // 1) Add this line:
-  onClose: () => void;
+  query: string
+  setQuery: React.Dispatch<React.SetStateAction<string>>
+  handleSubmit: (event: React.FormEvent) => void
+  showFlow: boolean
+  onClose: () => void
 }
 
-const SearchBox: React.FC<SearchBoxProps> = ({
-  query,
-  setQuery,
-  handleSubmit,
-  showFlow,
-  // 2) Destructure the new prop:
-  onClose,
-}) => {
-  // If the user clicks on one of the sample topics, this sets the query and triggers the search.
+const SearchBox: React.FC<SearchBoxProps> = ({ query, setQuery, handleSubmit, showFlow, onClose }) => {
   const handleTopicClick = (topic: string) => {
-    setQuery(topic);
-
-    // Create a synthetic form event to call handleSubmit in the same way as pressing 'Search'.
+    setQuery(topic)
     const syntheticEvent = {
       preventDefault: () => {},
       stopPropagation: () => {},
-    } as unknown as React.FormEvent<HTMLFormElement>;
-    handleSubmit(syntheticEvent);
-  };
+    } as unknown as React.FormEvent<HTMLFormElement>
+    handleSubmit(syntheticEvent)
+  }
 
-  // Example columns and topics
   const columns = [
     {
       title: "Business",
       topics: [
-        "Entrepreneurship",
-        "Marketing",
-        "Startups",
-        "E-commerce",
-        "Finance",
+        "Strategies for Scaling Startups",
+        "Effective Digital Marketing Techniques",
+        "The Rise of Subscription-based Business Models",
+        "Challenges in Cross-border E-commerce",
+        "Understanding Behavioral Finance in Investments",
       ],
     },
     {
       title: "Technology",
       topics: [
-        "Artificial Intelligence",
-        "Blockchain",
-        "Web Development",
-        "Data Science",
-        "Cybersecurity",
+        "The Impact of Artificial Intelligence on Healthcare",
+        "Blockchain Applications in Supply Chain Management",
+        "Emerging Trends in Frontend Web Frameworks",
+        "Advanced Techniques in Data Science for Predictive Analytics",
+        "Securing IoT Devices Against Cyber Threats",
       ],
     },
     {
       title: "Lifestyle",
-      topics: ["Health", "Travel", "Cooking", "Fitness", "Fashion"],
+      topics: [
+        "Sustainable Travel Practices for Eco-conscious Tourists",
+        "Meal Prepping for a Balanced Diet on Busy Schedules",
+        "High-intensity Interval Training for Beginners",
+        "The Psychology of Fashion Choices",
+        "Meditation Techniques for Stress Reduction",
+      ],
     },
-  ];
+  ]
 
   return (
-    // 3) Add "relative" here so we can absolutely position the Close button:
-    <div className="space-y-4 relative">
+    <div className="relative w-full max-w-5xl mx-auto p-4 space-y-6">
+      {/* Close button in the top-right corner */}
+      <Button variant="ghost" size="icon" className="absolute right-4 top-4" onClick={onClose}>
+        <X className="h-4 w-4" />
+      </Button>
+
       {/* Header */}
-      <h2 className="text-lg font-semibold text-center">
-        Gather content on any topic
-      </h2>
+      <h2 className="text-2xl font-semibold text-center">Gather content on any topic</h2>
 
       {/* Search box (input + button) */}
-      <form
-        onSubmit={handleSubmit}
-        className="flex items-center justify-center space-x-2"
-      >
+      <form onSubmit={handleSubmit} className="flex items-center justify-center gap-3 max-w-3xl mx-auto">
         <Input
           type="text"
           placeholder="Type your topic here..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          className="flex-1"
         />
         <Button type="submit">Search</Button>
       </form>
 
       {/* Horizontal separator */}
-      <Separator className="my-4" />
+      <Separator className="my-6" />
 
       {/* Three columns with topics */}
-      <div className="flex justify-around">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {columns.map((col, colIndex) => (
-          <React.Fragment key={colIndex}>
-            <div className="flex flex-col space-y-2 items-start w-1/3 max-w-[200px]">
-              <h3 className="text-sm font-medium leading-none mb-2">
-                {col.title}
-              </h3>
+          <div key={colIndex} className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">{col.title}</h3>
+            <div className="flex flex-col items-start gap-3">
               {col.topics.map((topic) => (
                 <Button
                   key={topic}
                   variant="link"
-                  className="p-0 text-blue-600 hover:underline"
+                  className="h-auto p-0 text-primary hover:text-primary/80 text-left whitespace-normal justify-start"
                   onClick={() => handleTopicClick(topic)}
                 >
                   {topic}
                 </Button>
               ))}
             </div>
-            {/* Vertical separator between columns */}
-            {colIndex < columns.length - 1 && (
-              <Separator orientation="vertical" className="mx-4" />
-            )}
-          </React.Fragment>
+          </div>
         ))}
       </div>
-
-      {/* 4) Add the close button in the bottom-right corner (red background) */}
-      <Button
-        className="absolute bottom-2 right-2 bg-red-500 text-white"
-        onClick={onClose}
-      >
-        Close
-      </Button>
     </div>
-  );
-};
+  )
+}
 
-export default SearchBox;
+export default SearchBox

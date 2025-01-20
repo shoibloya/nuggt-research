@@ -317,8 +317,7 @@ export async function POST(request: Request) {
       provide a research plan. Please ensure that every google search covers a topic that is different
       from other google searches in order to avoid redundant and repetitive information. For any given query,
       provide a list of google searches from varying areas and perspectives such that a large breadth of information
-      is retrieved related to that query in a manner that avoids redundant and repetitive information. Please choose 5 areas
-      from the following list of possible areas for your research:\n\n${areas}\n\n
+      is retrieved related to that query in a manner that avoids redundant and repetitive information. Please choose 5 distinct areas.
 
       Please provide a JSON response in the following format without any additional text:
       {
