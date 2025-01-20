@@ -61,8 +61,10 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
   // Store the ReactFlow instance
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
 
-  // **Flag to ensure zoom happens only once**
+  // **Flag and Counter to control zooming with a threshold**
   const hasZoomedRef = useRef(false);
+  const zoomCountRef = useRef(0);
+  const ZOOM_THRESHOLD = 2; // Threshold count
 
   useEffect(() => {
     setRfNodes(nodes);
@@ -148,7 +150,7 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         updateNode(nodeId, {
           data: {
             status: "researching",
-            displayLabel: `Researching on ${searchQuery}`,
+            displayLabel: `Researching on ${searchQuery} (it may take 1-2 minutes)`,
           },
           style: {
             backgroundColor: "#ffd699",
@@ -235,7 +237,10 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         if (ln) {
           return {
             ...node,
-            position: ln.position,
+            position: {
+              x: ln.position.x,
+              y: ln.position.y,
+            },
           };
         }
       }
@@ -299,19 +304,19 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
     [rfNodes, updateNodePosition, setNodes]
   );
 
-  // **Zoom only once for the first researching node**
+  // **Zoom only up to the threshold for researching nodes**
   useEffect(() => {
     if (!reactFlowInstance || !rfNodes.length) return;
 
-    // **Check if zoom has already been performed**
+    // **Check if zoom has already reached the threshold**
     if (hasZoomedRef.current) {
-      return; // Exit if already zoomed
+      return; // Exit if threshold is reached
     }
 
     // **Find the first node with data.status === 'researching'**
     const researchingNode = rfNodes.find((n) => n.data?.status === "researching");
     if (researchingNode) {
-      console.log("happening")
+      console.log("happening");
       // **Calculate the center position**
       const xCenter = researchingNode.position.x + ((researchingNode.width || nodeWidth) / 2);
       const yCenter = researchingNode.position.y + ((researchingNode.height || nodeHeight) / 2);
@@ -322,8 +327,15 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
         duration: 800, // ms for smooth animation
       });
 
-      // **Set the flag to true to prevent future zooms**
-      hasZoomedRef.current = true;
+      // **Increment the zoom counter**
+      zoomCountRef.current += 1;
+      console.log(`Zoom count: ${zoomCountRef.current}`);
+
+      // **Check if the threshold is reached**
+      if (zoomCountRef.current >= ZOOM_THRESHOLD) {
+        hasZoomedRef.current = true;
+        console.log("Zoom threshold reached. Further zooms disabled.");
+      }
     }
   }, [rfNodes, reactFlowInstance]);
 
