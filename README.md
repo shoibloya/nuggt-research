@@ -1,4 +1,4 @@
-# 🚀 Nuggt: Retrieve and store information to be used as context for LLM.
+# 🚀 Nuggt: Go from 0 to 1 on any topic instantly
 
 Join Discord: [Discord](https://discord.gg/N54SCevJ)
 
