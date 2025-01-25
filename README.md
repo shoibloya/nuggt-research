@@ -1,6 +1,6 @@
 # 🚀 Nuggt: Go from 0 to 1 on any topic instantly
 
-Join Discord: [Discord](https://discord.gg/N54SCevJ)
+Join Discord: [Discord](https://discord.gg/JGF6f448)
 
 Nuggt helps you gather, organize, and store information to create reusable contexts for large language models (LLMs). Please checkout the Demo Video to better understand how to use the tool (it can be a bit complicated, I am working to improve the UI/UX)
 
