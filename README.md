@@ -2,10 +2,9 @@
 
 Join Discord: [Discord](https://discord.gg/JGF6f448)
 
-Nuggt helps you gather, organize, and store information to create reusable contexts for large language models (LLMs). Please checkout the Demo Video to better understand how to use the tool (it can be a bit complicated, I am working to improve the UI/UX)
-
 🎥 **Demo**  
-Check out the video for a step-by-step walkthrough: [Youtube Video](https://youtu.be/NrJRhufFc6Q)
+
+Uploading Screen Recording 2025-01-26 at 3.48.22 AM.mp4…
 
 ---
 
