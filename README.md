@@ -4,7 +4,11 @@ Join Discord: [Discord](https://discord.gg/JGF6f448)
 
 🎥 **Demo**  
 
-Uploading Screen Recording 2025-01-26 at 3.48.22 AM.mp4…
+
+
+https://github.com/user-attachments/assets/78b35459-c2c1-4eab-ae7c-0c60637b79fe
+
+
 
 ---
 
