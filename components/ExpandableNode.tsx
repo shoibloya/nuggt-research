@@ -35,6 +35,7 @@ import { useFlowStore } from "@/storage/store";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Progress } from "@/components/ui/progress";
+import { Loader2 } from "lucide-react"; // lucide-react spinner
 
 const ExpandableNode: React.FC<NodeProps> = ({
   id,
@@ -46,7 +47,6 @@ const ExpandableNode: React.FC<NodeProps> = ({
 }) => {
   const isRoot = data.isRoot;
   const reactFlowInstance = useReactFlow();
-
   const addContextEntry = useFlowStore((state) => state.addContextEntry);
 
   // Follow-up dialog states
@@ -78,9 +78,13 @@ const ExpandableNode: React.FC<NodeProps> = ({
   const borderClass = selected ? "border-2 border-gray-700" : "border border-gray-500";
   const nodeClassName = `py-2 px-3 rounded cursor-pointer text-center flex items-center justify-between text-black ${borderClass}`;
 
+  // A lucide-react spinner
+  const spinner = <Loader2 className="animate-spin h-4 w-4 mr-2 text-black" />;
+
   const toggleExpansion = () => {
     setIsExpanded(!isExpanded);
     const descendants = getDescendants(id);
+
     reactFlowInstance.setNodes((nds) =>
       nds.map((node) => {
         if (descendants.includes(node.id) && node.id !== id) {
@@ -156,33 +160,6 @@ const ExpandableNode: React.FC<NodeProps> = ({
     }
   };
 
-  const updateNode = (
-    nodeId: string,
-    updates: {
-      data?: any;
-      style?: any;
-    }
-  ) => {
-    reactFlowInstance.setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === nodeId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              ...updates.data,
-            },
-            style: {
-              ...node.style,
-              ...updates.style,
-            },
-          };
-        }
-        return node;
-      })
-    );
-  };
-
   const handleDelete = () => {
     const nodesToDelete = getDescendants(id);
     reactFlowInstance.setNodes((nds) =>
@@ -212,9 +189,35 @@ const ExpandableNode: React.FC<NodeProps> = ({
     return descendants;
   };
 
+  const updateNode = (
+    nodeId: string,
+    updates: {
+      data?: any;
+      style?: any;
+    }
+  ) => {
+    reactFlowInstance.setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              ...updates.data,
+            },
+            style: {
+              ...node.style,
+              ...updates.style,
+            },
+          };
+        }
+        return node;
+      })
+    );
+  };
+
   // Follow-up handler (no automatic queries)
   const handleFollowUp = () => {
-    // Just open the dialog for user to input a single query
     setOpenFollowupDialog(true);
   };
 
@@ -286,9 +289,7 @@ const ExpandableNode: React.FC<NodeProps> = ({
     }
   };
 
-  // Create detail nodes from queries after user confirms
   const confirmDetailQueries = async () => {
-    // For each query, create a "researching" node first, then call addDetailNode to populate
     const node = reactFlowInstance.getNode(id);
     if (!node) return;
 
@@ -331,7 +332,6 @@ const ExpandableNode: React.FC<NodeProps> = ({
     reactFlowInstance.setNodes((nds) => nds.concat(newNodes));
     reactFlowInstance.setEdges((eds) => eds.concat(newEdges));
 
-    // Now populate each node with details
     await Promise.all(
       newNodeIds.map((newNodeId, index) => {
         const query = detailQueries[index];
@@ -351,13 +351,11 @@ const ExpandableNode: React.FC<NodeProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          query,
-        }),
+        body: JSON.stringify({ query }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch node content');
+        throw new Error('Failed to fetch data for detail node');
       }
 
       const result = await response.json();
@@ -390,13 +388,10 @@ const ExpandableNode: React.FC<NodeProps> = ({
     }
   };
 
-  // Renderers: We remove the li custom renderer that added detail buttons
+  // This helps us style any links in the content
   const renderers = {
     a: ({ node, ...props }) => (
-      <a
-        className="text-blue-600 underline"
-        {...props}
-      />
+      <a className="text-blue-600 underline" {...props} />
     ),
   };
 
@@ -436,13 +431,18 @@ const ExpandableNode: React.FC<NodeProps> = ({
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="default" className="bg-white p-2 hover:bg-yellow-200">
-              <strong className="text-black">{data.displayLabel || data.label}</strong>
+              <div className="flex items-center">
+                {/* Show spinner if showSpinner is true and status is 'researching' */}
+                {data.showSpinner && data.status === "researching" ? spinner : null}
+                <strong className="text-black">{data.displayLabel || data.label}</strong>
+              </div>
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[50rem] p-0 max-h-[500px] overflow-y-auto bg-white">
             <ContextMenu>
               <ContextMenuTrigger asChild>
                 <div className="text-black">
+                  {/* Show main content if it exists */}
                   {data.content ? (
                     <div>
                       <ReactMarkdown
@@ -452,6 +452,26 @@ const ExpandableNode: React.FC<NodeProps> = ({
                       >
                         {data.content}
                       </ReactMarkdown>
+
+                      {/*
+                        Show references from data.sources if they exist.
+                        data.sources is an object where each key is a URL.
+                      */}
+                      {data.sources && Object.keys(data.sources).length > 0 && (
+                        <div className="p-2">
+                          <strong>References:</strong>
+                          <ol>
+                            {Object.keys(data.sources).map((url, index) => (
+                              <li key={url}>
+                                [{index + 1}]{" "}
+                                <a href={url} target="_blank" rel="noopener noreferrer">
+                                  {url}
+                                </a>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <p>No content available.</p>
@@ -521,9 +541,9 @@ const ExpandableNode: React.FC<NodeProps> = ({
       {/* Details Dialog with queries card */}
       <Dialog open={openDetailsDialog} onOpenChange={setOpenDetailsDialog}>
         <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
+          <DialogHeader>
             <DialogTitle>Details</DialogTitle>
-        </DialogHeader>
+          </DialogHeader>
           {loadingQueries ? (
             <div className="flex flex-col items-center justify-center space-y-4 p-4">
               <div>Generating queries...</div>

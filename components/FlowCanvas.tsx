@@ -147,15 +147,44 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
       for (const ideaNode of pendingIdeaNodes) {
         const { nodeId, searchQuery, rootNodeId } = ideaNode;
 
+        // Rotating messages while researching
+        const rotatingMessages = [
+          `Researching on ${searchQuery}`,
+          "Reading first link",
+          "Reading second link",
+          "Reading third link",
+          "Reading fourth link",
+          "Reading fifth link",
+          "Summarizing content"
+        ];
+        let msgIndex = 0;
+
+        // Immediately set the first message with spinner
         updateNode(nodeId, {
           data: {
             status: "researching",
-            displayLabel: `Researching on ${searchQuery} (it may take 1-2 minutes)`,
+            displayLabel: rotatingMessages[msgIndex],
+            showSpinner: true,
           },
           style: {
             backgroundColor: "#ffd699",
           },
         });
+
+        // Start interval to rotate messages
+        const intervalId = setInterval(() => {
+          msgIndex = (msgIndex + 1) % rotatingMessages.length;
+          updateNode(nodeId, {
+            data: {
+              status: "researching",
+              displayLabel: rotatingMessages[msgIndex],
+              showSpinner: true,
+            },
+            style: {
+              backgroundColor: "#ffd699",
+            },
+          });
+        }, 4000);
 
         try {
           const response = await fetch("/api/researchIdea", {
@@ -180,12 +209,16 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
           setSources((prevSources) => ({ ...prevSources, ...nodeSources }));
 
+          // Clear rotating text (and spinner) once done
+          clearInterval(intervalId);
+
           updateNode(nodeId, {
             data: {
               status: "done",
               displayLabel: searchQuery,
               content: bulletPoints,
               sources: nodeSources,
+              showSpinner: false,
             },
             type: "expandable",
             style: {
@@ -194,11 +227,16 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
           });
         } catch (error) {
           console.error("Error processing nodeId:", nodeId, error);
+
+          // Clear rotating text if there's an error
+          clearInterval(intervalId);
+
           updateNode(nodeId, {
             data: {
               status: "done",
               displayLabel: searchQuery,
               content: "Failed to fetch data.",
+              showSpinner: false,
             },
             style: {
               backgroundColor: "#ffffff",
@@ -308,30 +346,24 @@ const FlowCanvas: React.FC<FlowCanvasProps> = ({
   useEffect(() => {
     if (!reactFlowInstance || !rfNodes.length) return;
 
-    // **Check if zoom has already reached the threshold**
     if (hasZoomedRef.current) {
       return; // Exit if threshold is reached
     }
 
-    // **Find the first node with data.status === 'researching'**
     const researchingNode = rfNodes.find((n) => n.data?.status === "researching");
     if (researchingNode) {
       console.log("happening");
-      // **Calculate the center position**
       const xCenter = researchingNode.position.x + ((researchingNode.width || nodeWidth) / 2);
       const yCenter = researchingNode.position.y + ((researchingNode.height || nodeHeight) / 2);
 
-      // **Perform the zoom and centering**
       reactFlowInstance.setCenter(xCenter, yCenter, {
         zoom: 1.5,
-        duration: 800, // ms for smooth animation
+        duration: 800,
       });
 
-      // **Increment the zoom counter**
       zoomCountRef.current += 1;
       console.log(`Zoom count: ${zoomCountRef.current}`);
 
-      // **Check if the threshold is reached**
       if (zoomCountRef.current >= ZOOM_THRESHOLD) {
         hasZoomedRef.current = true;
         console.log("Zoom threshold reached. Further zooms disabled.");
